@@ -1,0 +1,104 @@
+body{
+margin:0;
+font-family: 'Segoe UI', sans-serif;
+background:linear-gradient(120deg,#0f172a,#020617);
+color:white;
+overflow-x:hidden;
+}
+
+header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:20px 60px;
+}
+
+.logo{
+font-size:28px;
+font-weight:700;
+letter-spacing:1px;
+}
+
+nav a{
+margin-left:25px;
+text-decoration:none;
+color:#cbd5f5;
+}
+
+.hero{
+text-align:center;
+margin-top:120px;
+}
+
+.hero h1{
+font-size:60px;
+font-weight:700;
+background:linear-gradient(90deg,#38bdf8,#22c55e);
+
+-webkit-background-clip:text;
+background-clip:text;
+
+color:transparent;
+}
+
+.hero h1{
+font-size:60px;
+font-weight:700;
+
+background:linear-gradient(90deg,#38bdf8,#22c55e);
+-webkit-background-clip:text;
+background-clip:text;
+color:transparent;
+
+text-shadow:0 0 40px rgba(56,189,248,0.6);
+}
+
+.hero p{
+font-size:20px;
+color:#94a3b8;
+margin-top:20px;
+}
+
+.btn{
+margin-top:40px;
+padding:16px 40px;
+border-radius:40px;
+border:none;
+font-size:18px;
+background:linear-gradient(90deg,#06b6d4,#22c55e);
+color:white;
+cursor:pointer;
+transition:0.3s;
+}
+
+.btn:hover{
+transform:scale(1.1);
+}
+
+.glass-card{
+background:rgba(255,255,255,0.05);
+backdrop-filter:blur(10px);
+border:1px solid rgba(255,255,255,0.1);
+border-radius:20px;
+padding:30px;
+box-shadow:0 0 40px rgba(0,0,0,0.5);
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:30px;
+padding:60px;
+}
+
+.card{
+transition:0.3s;
+}
+
+.card img{
+width:100%;
+}
+
+.card:hover{
+transform:translateY(-10px) scale(1.05);
+}

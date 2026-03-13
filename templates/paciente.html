@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>VisionAI • Cadastro do Paciente</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='visionai.css') }}">
+
+<style>
+
+.container{
+width:420px;
+margin:auto;
+margin-top:120px;
+}
+
+input{
+width:100%;
+padding:14px;
+margin-top:15px;
+border-radius:10px;
+border:none;
+background:rgba(255,255,255,0.08);
+color:white;
+font-size:16px;
+outline:none;
+}
+
+input::placeholder{
+color:#94a3b8;
+}
+
+button{
+margin-top:30px;
+width:100%;
+padding:14px;
+border:none;
+border-radius:30px;
+font-size:16px;
+background:linear-gradient(90deg,#06b6d4,#22c55e);
+cursor:pointer;
+color:white;
+transition:0.3s;
+}
+
+button:hover{
+transform:scale(1.05);
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+
+<div class="logo">
+VisionAI
+</div>
+
+</header>
+
+<div class="container glass-card">
+
+<h2>Cadastro do Paciente</h2>
+
+<form action="/salvar_paciente" method="POST">
+
+<input type="text" name="nome" placeholder="Nome do paciente">
+
+<input type="number" name="idade" placeholder="Idade">
+
+<button type="submit">
+Continuar
+</button>
+
+</form>
+
+</div>
+
+</body>
+</html>
