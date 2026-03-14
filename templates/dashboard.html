@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>VisionAI • Dashboard</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='visionai.css') }}">
+
+<style>
+
+body{
+margin:0;
+font-family:Segoe UI;
+background:radial-gradient(circle at top,#0f172a,#020617);
+color:white;
+}
+
+/* header */
+
+header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:20px 60px;
+}
+
+.logo{
+font-size:26px;
+font-weight:700;
+}
+
+nav a{
+margin-left:20px;
+color:white;
+text-decoration:none;
+padding:8px 14px;
+border-radius:8px;
+}
+
+nav a:hover{
+background:#22c55e;
+color:black;
+}
+
+/* dashboard */
+
+.dashboard{
+display:flex;
+justify-content:center;
+gap:40px;
+margin-top:120px;
+}
+
+.card{
+background:rgba(255,255,255,0.05);
+padding:40px;
+border-radius:20px;
+text-align:center;
+width:200px;
+}
+
+.card h2{
+font-size:36px;
+color:#22c55e;
+margin:0;
+}
+
+.card p{
+margin-top:8px;
+color:#94a3b8;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+
+<div class="logo">VisionAI</div>
+
+<nav>
+
+<a href="/">Dashboard</a>
+<a href="/paciente">Cadastrar Paciente</a>
+<a href="/pacientes">Pacientes</a>
+
+</nav>
+
+</header>
+
+<div class="dashboard">
+
+<div class="card">
+<h2>{{ total_pacientes }}</h2>
+<p>Pacientes</p>
+</div>
+
+<div class="card">
+<h2>{{ total_receitas }}</h2>
+<p>Receitas</p>
+</div>
+
+<div class="card">
+<h2>{{ total_armacoes }}</h2>
+<p>Armações</p>
+</div>
+
+</div>
+
+</body>
+
+</html>

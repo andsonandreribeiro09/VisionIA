@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 
 <head>
+
+<meta charset="UTF-8">
 
 <title>VisionAI • Cadastro do Paciente</title>
 
@@ -9,26 +11,96 @@
 
 <style>
 
+body{
+margin:0;
+font-family:Segoe UI;
+background:radial-gradient(circle at top,#0f172a,#020617);
+color:white;
+}
+
+/* HEADER */
+
+header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:20px 60px;
+}
+
+.logo{
+font-size:24px;
+font-weight:700;
+}
+
+nav a{
+margin-left:20px;
+text-decoration:none;
+color:white;
+font-weight:500;
+padding:8px 14px;
+border-radius:8px;
+transition:0.3s;
+}
+
+nav a:hover{
+background:#22c55e;
+color:black;
+}
+
+/* DASHBOARD */
+
+.dashboard{
+display:flex;
+justify-content:center;
+gap:30px;
+margin-top:40px;
+}
+
+.card{
+background:rgba(255,255,255,0.05);
+padding:25px;
+border-radius:15px;
+width:180px;
+text-align:center;
+}
+
+.card h3{
+margin:0;
+font-size:28px;
+color:#22c55e;
+}
+
+.card p{
+margin-top:5px;
+color:#94a3b8;
+}
+
+/* FORM */
+
 .container{
 width:420px;
 margin:auto;
-margin-top:120px;
+margin-top:60px;
+padding:40px;
+border-radius:20px;
+background:rgba(255,255,255,0.05);
+}
+
+label{
+display:block;
+margin-top:15px;
+color:#94a3b8;
 }
 
 input{
 width:100%;
 padding:14px;
-margin-top:15px;
+margin-top:5px;
 border-radius:10px;
 border:none;
 background:rgba(255,255,255,0.08);
 color:white;
 font-size:16px;
-outline:none;
-}
-
-input::placeholder{
-color:#94a3b8;
 }
 
 button{
@@ -37,15 +109,10 @@ width:100%;
 padding:14px;
 border:none;
 border-radius:30px;
-font-size:16px;
 background:linear-gradient(90deg,#06b6d4,#22c55e);
-cursor:pointer;
 color:white;
-transition:0.3s;
-}
-
-button:hover{
-transform:scale(1.05);
+font-size:16px;
+cursor:pointer;
 }
 
 </style>
@@ -56,24 +123,68 @@ transform:scale(1.05);
 
 <header>
 
-<div class="logo">
-VisionAI
-</div>
+<div class="logo">VisionAI</div>
+
+<nav>
+
+<a href="/paciente">Cadastro</a>
+
+<a href="/pacientes">Pacientes</a>
+
+</nav>
 
 </header>
 
-<div class="container glass-card">
+
+<!-- DASHBOARD -->
+
+<div class="dashboard">
+
+<div class="card">
+<h3>{{ total_pacientes }}</h3>
+<p>Pacientes</p>
+</div>
+
+<div class="card">
+<h3>{{ total_receitas }}</h3>
+<p>Receitas</p>
+</div>
+
+<div class="card">
+<h3>{{ total_armacoes }}</h3>
+<p>Armações</p>
+</div>
+
+</div>
+
+
+<!-- FORMULARIO -->
+
+<div class="container">
 
 <h2>Cadastro do Paciente</h2>
 
 <form action="/salvar_paciente" method="POST">
 
-<input type="text" name="nome" placeholder="Nome do paciente">
+<label>Nome</label>
+<input type="text" name="nome" required>
 
-<input type="number" name="idade" placeholder="Idade">
+<label>Idade</label>
+<input type="number" name="idade" required>
+
+<label>Telefone</label>
+<input 
+type="tel"
+name="telefone"
+placeholder="(11) 99999-9999"
+required
+>
+
+<label>Data do exame</label>
+<input type="date" name="data_exame" required>
 
 <button type="submit">
-Continuar
+Salvar e continuar
 </button>
 
 </form>
@@ -81,4 +192,5 @@ Continuar
 </div>
 
 </body>
+
 </html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>VisionAI • Pacientes</title>
+
+<style>
+
+body{
+font-family:Segoe UI;
+background:#020617;
+color:white;
+padding:40px;
+}
+
+h1{
+color:#22c55e;
+}
+
+input{
+padding:10px;
+width:300px;
+border-radius:8px;
+border:none;
+}
+
+table{
+width:100%;
+margin-top:30px;
+border-collapse:collapse;
+}
+
+td,th{
+padding:12px;
+border-bottom:1px solid #1e293b;
+}
+
+a{
+color:#38bdf8;
+text-decoration:none;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Pacientes</h1>
+
+<form method="GET">
+
+<input
+name="busca"
+placeholder="Buscar paciente"
+value="{{request.args.get('busca','')}}"
+>
+
+<button>Buscar</button>
+
+</form>
+
+<table>
+
+<tr>
+<th>Nome</th>
+<th>Telefone</th>
+<th>Ação</th>
+</tr>
+
+{% for p in pacientes %}
+
+<tr>
+
+<td>{{p[1]}}</td>
+<td>{{p[2]}}</td>
+
+<td>
+<a href="/prontuario/{{p[0]}}">
+Abrir prontuário
+</a>
+</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+</body>
+</html>
