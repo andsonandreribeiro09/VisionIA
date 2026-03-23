@@ -19,8 +19,15 @@ def conectar():
     )
     """)
 
+    # ✅ GARANTE COLUNA FOTO (MIGRAÇÃO SEGURA)
+    cursor.execute("PRAGMA table_info(pacientes)")
+    colunas = [col[1] for col in cursor.fetchall()]
+
+    if "foto" not in colunas:
+        cursor.execute("ALTER TABLE pacientes ADD COLUMN foto TEXT")
+
     # -------------------------
-    # TABELA RECEITAS
+    # RECEITAS
     # -------------------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS receitas(
@@ -39,13 +46,13 @@ def conectar():
     """)
 
     # -------------------------
-    # TABELA PEDIDOS
+    # PEDIDOS (armação escolhida)
     # -------------------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS pedidos(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         paciente_id INTEGER,
-        armacao TEXT,
+        armacao INTEGER,
         dp REAL,
         dnp_dir REAL,
         dnp_esq REAL,
@@ -54,7 +61,7 @@ def conectar():
     """)
 
     # -------------------------
-    # TABELA ARMAÇÕES
+    # ARMAÇÕES
     # -------------------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS armacoes(
@@ -65,6 +72,22 @@ def conectar():
         tamanho INTEGER,
         valor REAL,
         imagem TEXT
+    )
+    """)
+
+    # -------------------------
+    # MEDIÇÕES (NOVO 🔥)
+    # -------------------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS medicoes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        paciente_id INTEGER,
+        dp REAL,
+        dnp_e REAL,
+        dnp_d REAL,
+        score REAL,
+        data TEXT,
+        FOREIGN KEY (paciente_id) REFERENCES pacientes(id)
     )
     """)
 

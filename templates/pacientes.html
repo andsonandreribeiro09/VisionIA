@@ -1,43 +1,104 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 
 <head>
+<meta charset="UTF-8">
 <title>VisionAI • Pacientes</title>
 
 <style>
 
 body{
-font-family:Segoe UI;
-background:#020617;
-color:white;
-padding:40px;
+  font-family:Segoe UI;
+  background:#020617;
+  color:white;
+  padding:40px;
+  margin:0;
 }
 
 h1{
-color:#22c55e;
+  color:#22c55e;
+  margin-bottom:20px;
+}
+
+.top-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
 }
 
 input{
-padding:10px;
-width:300px;
-border-radius:8px;
-border:none;
+  padding:10px;
+  width:260px;
+  border-radius:8px;
+  border:none;
+  outline:none;
+}
+
+button{
+  padding:10px 15px;
+  border:none;
+  border-radius:8px;
+  background:#22c55e;
+  color:white;
+  cursor:pointer;
+}
+
+button:hover{
+  background:#16a34a;
 }
 
 table{
-width:100%;
-margin-top:30px;
-border-collapse:collapse;
+  width:100%;
+  margin-top:30px;
+  border-collapse:collapse;
+  background:#0f172a;
+  border-radius:10px;
+  overflow:hidden;
 }
 
 td,th{
-padding:12px;
-border-bottom:1px solid #1e293b;
+  padding:14px;
+  border-bottom:1px solid #1e293b;
+  text-align:left;
+}
+
+th{
+  background:#020617;
+  color:#94a3b8;
+}
+
+tr:hover{
+  background:#020617;
 }
 
 a{
-color:#38bdf8;
-text-decoration:none;
+  color:#38bdf8;
+  text-decoration:none;
+  font-weight:bold;
+}
+
+a:hover{
+  text-decoration:underline;
+}
+
+.btn-voltar{
+  display:inline-block;
+  margin-top:20px;
+  padding:10px 15px;
+  background:#334155;
+  border-radius:8px;
+  color:white;
+}
+
+.btn-voltar:hover{
+  background:#1e293b;
+}
+
+.sem-dados{
+  margin-top:30px;
+  color:#94a3b8;
+  font-size:18px;
 }
 
 </style>
@@ -46,39 +107,40 @@ text-decoration:none;
 
 <body>
 
-<h1>Pacientes</h1>
+<div class="top-bar">
+  <h1>👥 Pacientes</h1>
 
-<form method="GET">
+  <form method="GET">
+    <input
+      name="busca"
+      placeholder="Buscar paciente"
+      value="{{ request.args.get('busca','') }}"
+    >
+    <button type="submit">Buscar</button>
+  </form>
+</div>
 
-<input
-name="busca"
-placeholder="Buscar paciente"
-value="{{request.args.get('busca','')}}"
->
-
-<button>Buscar</button>
-
-</form>
+{% if pacientes %}
 
 <table>
 
 <tr>
-<th>Nome</th>
-<th>Telefone</th>
-<th>Ação</th>
+  <th>Nome</th>
+  <th>Telefone</th>
+  <th>Ação</th>
 </tr>
 
 {% for p in pacientes %}
 
 <tr>
 
-<td>{{p[1]}}</td>
-<td>{{p[2]}}</td>
+<td>{{ p["nome"] }}</td>
+<td>{{ p["telefone"] }}</td>
 
 <td>
-<a href="/prontuario/{{p[0]}}">
-Abrir prontuário
-</a>
+  <a href="/prontuario/{{ p['id'] }}">
+    📋 Abrir prontuário
+  </a>
 </td>
 
 </tr>
@@ -87,5 +149,14 @@ Abrir prontuário
 
 </table>
 
+{% else %}
+
+<p class="sem-dados">Nenhum paciente encontrado.</p>
+
+{% endif %}
+
+<a class="btn-voltar" href="/dashboard">⬅ Voltar para o Dashboard</a>
+
 </body>
+
 </html>
