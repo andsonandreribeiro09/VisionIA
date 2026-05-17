@@ -5,23 +5,25 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libegl1 \
-        libgl1 \
-        libgles2-mesa \
-        libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        ffmpeg \
+# =========================
+# DEPENDÊNCIAS DO MEDIAPIPE
+# =========================
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libgles2-mesa-dev \
+    libegl1-mesa-dev \
+    mesa-utils \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD gunicorn app:app --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 120
+EXPOSE 10000
+
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:10000"]
