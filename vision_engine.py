@@ -1,38 +1,64 @@
+import os
 import cv2
+import time
 import mediapipe as mp
 import numpy as np
-import os
-import time
 
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python import BaseOptions
 
-# -----------------------------
-# CALIBRAÇÃO DE CÂMERA
-# -----------------------------
+# =========================================================
+# CONFIGURAÇÕES RENDER / SERVIDOR
+# =========================================================
+
+IS_RENDER = os.environ.get("RENDER") is not None
+
+# =========================================================
+# CALIBRAÇÃO DA CÂMERA
+# =========================================================
+
 camera_matrix = np.load("camera_matrix.npy")
 dist_coeffs = np.load("dist_coeffs.npy")
 
-# -----------------------------
+# =========================================================
 # CONFIG MEDIAPIPE
-# -----------------------------
-options = vision.FaceLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path="face_landmarker.task"),
-    running_mode=vision.RunningMode.VIDEO,
-    num_faces=1,
-    output_face_blendshapes=False,
-    output_facial_transformation_matrixes=False
-)
+# =========================================================
 
-detector = vision.FaceLandmarker.create_from_options(options)
+detector = None
 
-# -----------------------------
-# ESTADO GLOBAL IA
-# -----------------------------
+try:
+
+    options = vision.FaceLandmarkerOptions(
+        base_options=BaseOptions(
+            model_asset_path="face_landmarker.task"
+        ),
+        running_mode=vision.RunningMode.VIDEO,
+        num_faces=1,
+        output_face_blendshapes=False,
+        output_facial_transformation_matrixes=False
+    )
+
+    detector = vision.FaceLandmarker.create_from_options(options)
+
+    print("✅ MediaPipe carregado")
+
+except Exception as e:
+
+    print("❌ Erro MediaPipe:")
+    print(e)
+
+    detector = None
+
+# =========================================================
+# ESTADO GLOBAL
+# =========================================================
+
 IRIS_REAL_MM = 11.7
+
 escala_suave = None
 
 historico_dp = []
+
 capturado = False
 medicao_final = None
 tempo_ok_inicio = None
@@ -44,347 +70,612 @@ dados_medicao = {
     "score": 0,
     "status": "Iniciando...",
     "instrucao": "Posicione seu rosto",
+    "capturado": False,
+    "validacao": {},
+    "historico": []
 }
 
-# -----------------------------
-# OLHOS (validação real)
-# -----------------------------
+# =========================================================
+# LANDMARKS DOS OLHOS
+# =========================================================
+
 olho_esq = [33, 160, 158, 133, 153, 144]
 olho_dir = [362, 385, 387, 263, 373, 380]
 
-def olho_aberto(landmarks, indices, w, h):
-    pts = [(landmarks[i].x * w, landmarks[i].y * h) for i in indices]
-    altura = abs(pts[1][1] - pts[5][1])
-    return altura > 6
-
-# -----------------------------
+# =========================================================
 # SUAVIZAÇÃO
-# -----------------------------
-smooth = {"lx": None, "ly": None, "rx": None, "ry": None, "nx": None, "ny": None}
+# =========================================================
 
-def suavizar(a, b):
-    if a is None:
-        return b
-    movimento = abs(b - a)
-    alpha = 0.4 if movimento > 10 else 0.8
-    return int(alpha * a + (1 - alpha) * b)
+smooth = {
+    "lx": None,
+    "ly": None,
+    "rx": None,
+    "ry": None,
+    "nx": None,
+    "ny": None
+}
 
-# -----------------------------
-# RESET MEDIÇÃO (🔥 AQUI)
-# -----------------------------
+# =========================================================
+# FUNÇÕES AUXILIARES
+# =========================================================
+
 def resetar_medicao():
-    global historico_dp, capturado, medicao_final, tempo_ok_inicio
+
+    global historico_dp
+    global capturado
+    global medicao_final
+    global tempo_ok_inicio
+    global escala_suave
 
     historico_dp = []
+
     capturado = False
+
     medicao_final = None
+
     tempo_ok_inicio = None
 
+    escala_suave = None
 
-# -----------------------------
-# ÍRIS
-# -----------------------------
+
+def suavizar(a, b):
+
+    if a is None:
+        return b
+
+    movimento = abs(b - a)
+
+    alpha = 0.4 if movimento > 10 else 0.8
+
+    return int(alpha * a + (1 - alpha) * b)
+
+
+def olho_aberto(landmarks, indices, w, h):
+
+    pts = [
+        (landmarks[i].x * w, landmarks[i].y * h)
+        for i in indices
+    ]
+
+    altura = abs(pts[1][1] - pts[5][1])
+
+    return altura > 6
+
+
 def calcular_diametro_iris(landmarks, w, h):
+
     pontos = [468, 469, 470, 471, 472]
-    coords = np.array([[landmarks[i].x * w, landmarks[i].y * h] for i in pontos])
+
+    coords = np.array([
+        [landmarks[i].x * w, landmarks[i].y * h]
+        for i in pontos
+    ])
+
     centro = np.mean(coords, axis=0)
-    raio = np.mean([np.linalg.norm(p - centro) for p in coords])
+
+    raio = np.mean([
+        np.linalg.norm(p - centro)
+        for p in coords
+    ])
+
     return raio * 2
 
+
 def centro_iris(landmarks, indices, w, h):
-    coords = np.array([[landmarks[i].x * w, landmarks[i].y * h] for i in indices])
-    centro = cv2.fitEllipse(coords.astype(np.int32))[0]
-    return int(centro[0]), int(centro[1])
 
-# -----------------------------
+    coords = np.array([
+        [landmarks[i].x * w, landmarks[i].y * h]
+        for i in indices
+    ])
+
+    # EVITA ERRO fitEllipse
+    if len(coords) < 5:
+        return None, None
+
+    try:
+
+        centro = cv2.fitEllipse(
+            coords.astype(np.int32)
+        )[0]
+
+        return int(centro[0]), int(centro[1])
+
+    except:
+        return None, None
+
+# =========================================================
 # PROCESSAMENTO PRINCIPAL
-# -----------------------------
+# =========================================================
+
 def processar_frame(frame):
-    global escala_suave, historico_dp
-    global capturado, medicao_final, dados_medicao
+
+    global escala_suave
+    global historico_dp
+    global capturado
+    global medicao_final
     global tempo_ok_inicio
+    global dados_medicao
 
-    h, w = frame.shape[:2]
+    # =====================================================
+    # FALLBACK RENDER
+    # =====================================================
 
-    # -----------------------------
-    # CORREÇÃO DE DISTORÇÃO (ESSENCIAL)
-    # -----------------------------
-    if not hasattr(processar_frame, "newcameramtx"):
-        processar_frame.newcameramtx, _ = cv2.getOptimalNewCameraMatrix(
-            camera_matrix, dist_coeffs, (w, h), 0.3, (w, h)
+    if detector is None:
+
+        cv2.putText(
+            frame,
+            "MediaPipe indisponivel no servidor",
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2
         )
 
-    frame = cv2.undistort(frame, camera_matrix, dist_coeffs, None, processar_frame.newcameramtx)
-
-    # timestamp
-    frame_id = getattr(processar_frame, "frame_id", 0) + 1
-    processar_frame.frame_id = frame_id
-    timestamp = int(time.time() * 1000)
-
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-    result = detector.detect_for_video(mp_image, timestamp)
-
-    if not result.face_landmarks:
-        resetar_medicao()  # 🔥 AQUI
-        dados_medicao["instrucao"] = "Posicione seu rosto"
         return frame
 
-    lm = result.face_landmarks[0]
+    try:
 
-    # -----------------------------
-    # LANDMARKS
-    # -----------------------------
-    iris_left = [468, 469, 470, 471, 472]
-    iris_right = [473, 474, 475, 476, 477]
+        h, w = frame.shape[:2]
 
-    lx, ly = centro_iris(lm, iris_left, w, h)
-    rx, ry = centro_iris(lm, iris_right, w, h)
+        # =================================================
+        # CORREÇÃO DE DISTORÇÃO
+        # =================================================
 
-    # =========================
-    # 🔥 VALIDAÇÃO DOS OLHOS (ANTI-ERRO)
-    # =========================
-    if lx <= 0 or rx <= 0:
-        return frame
+        if not hasattr(processar_frame, "newcameramtx"):
 
-    if abs(lx - rx) < 10:
-        return frame
+            processar_frame.newcameramtx, _ = cv2.getOptimalNewCameraMatrix(
+                camera_matrix,
+                dist_coeffs,
+                (w, h),
+                0.3,
+                (w, h)
+            )
 
-    nx, ny = int(lm[1].x * w), int(lm[1].y * h)
+        frame = cv2.undistort(
+            frame,
+            camera_matrix,
+            dist_coeffs,
+            None,
+            processar_frame.newcameramtx
+        )
 
-    # -----------------------------
-    # SUAVIZAÇÃO
-    # -----------------------------
-    smooth["lx"] = suavizar(smooth["lx"], lx)
-    smooth["ly"] = suavizar(smooth["ly"], ly)
-    smooth["rx"] = suavizar(smooth["rx"], rx)
-    smooth["ry"] = suavizar(smooth["ry"], ry)
-    smooth["nx"] = suavizar(smooth["nx"], nx)
-    smooth["ny"] = suavizar(smooth["ny"], ny)
+        # =================================================
+        # TIMESTAMP
+        # =================================================
 
-    lx, ly = smooth["lx"], smooth["ly"]
-    rx, ry = smooth["rx"], smooth["ry"]
-    nx, ny = smooth["nx"], smooth["ny"]
+        timestamp = int(time.time() * 1000)
 
-    # -----------------------------
-    # ÂNGULO
-    # -----------------------------
-    angulo = np.degrees(np.arctan2(ry - ly, rx - lx))
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    # -----------------------------
-    # ÍRIS
-    # -----------------------------
-    iris_px = calcular_diametro_iris(lm, w, h)
+        mp_image = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=rgb
+        )
 
-    if iris_px < 5:
-        resetar_medicao()  # 🔥 evita lixo no histórico
-        dados_medicao["instrucao"] = "Aproxime o rosto"
-        return frame
+        result = detector.detect_for_video(
+            mp_image,
+            timestamp
+        )
 
-    # -----------------------------
-    # ESCALA (Plano B robusto)
-    # -----------------------------
-    dist_olhos_px = np.linalg.norm([rx - lx, ry - ly])
+        # =================================================
+        # SEM ROSTO
+        # =================================================
 
-    if dist_olhos_px < 1:
-        return frame
+        if not result.face_landmarks:
 
-    escala_olho = 63 / dist_olhos_px
-    escala_iris = IRIS_REAL_MM / iris_px
+            resetar_medicao()
 
-    peso_iris = 0.4 if iris_px > 20 else 0.2
-    escala_raw = (escala_olho * (1 - peso_iris)) + (escala_iris * peso_iris)
+            dados_medicao["instrucao"] = "Posicione seu rosto"
 
-    if escala_suave is None:
-        escala_suave = escala_raw
-    else:
-        escala_suave = 0.9 * escala_suave + 0.1 * escala_raw
+            return frame
 
-    escala = np.clip(escala_suave, 0.3, 0.6)
+        lm = result.face_landmarks[0]
 
-    # -----------------------------
-    # -----------------------------
-    # PURKINJE (CORREÇÃO FINA REAL)
-    # -----------------------------
-    dx = rx - lx
-    dy = 0  # força eixo horizontal
+        # =================================================
+        # ÍRIS
+        # =================================================
 
-    norm = np.sqrt(dx**2 + dy**2)
-    if norm == 0:
-        return frame
+        iris_left = [468, 469, 470, 471, 472]
+        iris_right = [473, 474, 475, 476, 477]
 
-    ux = dx / norm
-    uy = dy / norm
+        lx, ly = centro_iris(
+            lm,
+            iris_left,
+            w,
+            h
+        )
 
-    # vetor perpendicular
-    perp_x = -uy
-    perp_y = ux
+        rx, ry = centro_iris(
+            lm,
+            iris_right,
+            w,
+            h
+        )
 
-    offset_mm = 0.5
-    offset_px = offset_mm / escala
+        # =================================================
+        # VALIDAÇÕES
+        # =================================================
 
-    # 🔥 ALINHA OS DOIS OLHOS NO MESMO EIXO
-    y_medio = (ly + ry) / 2
+        if lx is None or rx is None:
+            return frame
 
-    # 🔥 aplica correção
-    lx_opt = lx - perp_x * offset_px
-    ly_opt = y_medio - perp_y * offset_px
+        if lx <= 0 or rx <= 0:
+            return frame
 
-    rx_opt = rx + perp_x * offset_px
-    ry_opt = y_medio + perp_y * offset_px
+        if abs(lx - rx) < 10:
+            return frame
 
-    # -----------------------------
-    # MEDIDAS
-    # -----------------------------
-    dp_px = np.linalg.norm([rx_opt - lx_opt, ry_opt - ly_opt])
+        # =================================================
+        # NARIZ
+        # =================================================
 
-    centro_face = (lx_opt + rx_opt) / 2
+        nx = int(lm[1].x * w)
+        ny = int(lm[1].y * h)
 
-    dnp_e_px = abs(lx_opt - centro_face)
-    dnp_d_px = abs(rx_opt - centro_face)
+        # =================================================
+        # SUAVIZAÇÃO
+        # =================================================
 
-    soma = dnp_e_px + dnp_d_px
-    if soma > 0:
-        fator = dp_px / soma
-        dnp_e_px *= fator
-        dnp_d_px *= fator
+        smooth["lx"] = suavizar(smooth["lx"], lx)
+        smooth["ly"] = suavizar(smooth["ly"], ly)
 
-    dp_mm = dp_px * escala
-    dnp_e_mm = dnp_e_px * escala
-    dnp_d_mm = dnp_d_px * escala
+        smooth["rx"] = suavizar(smooth["rx"], rx)
+        smooth["ry"] = suavizar(smooth["ry"], ry)
 
-    # -----------------------------
-    # SCORE CLÍNICO
-    # -----------------------------
-    score = 0
+        smooth["nx"] = suavizar(smooth["nx"], nx)
+        smooth["ny"] = suavizar(smooth["ny"], ny)
 
-    olhos_ok = olho_aberto(lm, olho_esq, w, h) and olho_aberto(lm, olho_dir, w, h)
-    cabeca_ok = abs(angulo) < 4
-    centro_ok = abs(nx - w/2) < 40
-    dist_ok = 20 < iris_px < 50
+        lx = smooth["lx"]
+        ly = smooth["ly"]
 
-    if olhos_ok: score += 25
-    if cabeca_ok: score += 25
-    if centro_ok: score += 25
-    if dist_ok: score += 25
+        rx = smooth["rx"]
+        ry = smooth["ry"]
 
-    # -----------------------------
-    # ESTABILIDADE (🔥 MELHORADO)
-    # -----------------------------
-    MARGEM_OK = 85
-    MARGEM_RESET = 70
+        nx = smooth["nx"]
+        ny = smooth["ny"]
 
-    if score >= MARGEM_OK:
-        if tempo_ok_inicio is None:
-            tempo_ok_inicio = time.time()
+        # =================================================
+        # ÂNGULO
+        # =================================================
 
-    elif score < MARGEM_RESET:
-        tempo_ok_inicio = None
+        angulo = np.degrees(
+            np.arctan2(
+                ry - ly,
+                rx - lx
+            )
+        )
 
-    # -----------------------------
-    # HISTÓRICO
-    # -----------------------------
-    if score >= 80 and not capturado:
-        historico_dp.append(dp_mm)
+        # =================================================
+        # DIÂMETRO ÍRIS
+        # =================================================
 
-        if len(historico_dp) > 25:
-            historico_dp.pop(0)
+        iris_px = calcular_diametro_iris(
+            lm,
+            w,
+            h
+        )
 
-    # -----------------------------
-    # PRECISÃO
-    # -----------------------------
-    confiavel = False
+        if iris_px < 5:
 
-    if len(historico_dp) > 10:
-        desvio = np.std(historico_dp)
-        if desvio < 0.5:
-            confiavel = True
+            resetar_medicao()
 
-    # CAPTURA FINAL (AJUSTADO)
-    # -----------------------------
-    if (
-        tempo_ok_inicio is not None and
-        time.time() - tempo_ok_inicio > 2.0 and
-        confiavel and
-        not capturado
-    ):
-        medicao_final = np.median(historico_dp)
-        capturado = True
+            dados_medicao["instrucao"] = "Aproxime o rosto"
 
+            return frame
 
-    # VALIDAÇÃO CLÍNICA (CORRIGIDO)
-    media, desvio, erro_max = 0, 0, 0  # inicializa sempre
+        # =================================================
+        # ESCALA
+        # =================================================
 
-    if len(historico_dp) > 6:
-        historico_array = np.array(historico_dp)
+        dist_olhos_px = np.linalg.norm([
+            rx - lx,
+            ry - ly
+        ])
 
-        media = float(np.mean(historico_array))
-        desvio = float(np.std(historico_array))
-        erro_max = float(np.max(np.abs(historico_array - media)))
+        if dist_olhos_px < 1:
+            return frame
 
-    aprovado = desvio < 0.5 and erro_max < 1.0
+        escala_olho = 63 / dist_olhos_px
 
-    validacao = {
-        "media": round(media, 2),
-        "desvio": round(desvio, 3),
-        "erro_max": round(erro_max, 2),
-        "status": "APROVADO" if aprovado else "REPROVADO"
-    }
-    # =========================
-    # RESET CONTROLADO (SEPARADO)
-    # =========================
-    if capturado:
+        escala_iris = IRIS_REAL_MM / iris_px
 
-        dp_mm = medicao_final
+        peso_iris = 0.4 if iris_px > 20 else 0.2
 
-        # cria variável própria do reset
-        if not hasattr(processar_frame, "tempo_reset") or processar_frame.tempo_reset is None:
-            processar_frame.tempo_reset = time.time()
+        escala_raw = (
+            (escala_olho * (1 - peso_iris))
+            + (escala_iris * peso_iris)
+        )
+
+        if escala_suave is None:
+            escala_suave = escala_raw
+        else:
+            escala_suave = (
+                0.9 * escala_suave
+                + 0.1 * escala_raw
+            )
+
+        escala = np.clip(
+            escala_suave,
+            0.3,
+            0.6
+        )
+
+        # =================================================
+        # MEDIDAS
+        # =================================================
+
+        dp_px = np.linalg.norm([
+            rx - lx,
+            ry - ly
+        ])
+
+        dp_mm = dp_px * escala
+
+        dnp_e_mm = dp_mm / 2
+        dnp_d_mm = dp_mm / 2
+
+        # =================================================
+        # SCORE
+        # =================================================
+
+        score = 0
+
+        olhos_ok = (
+            olho_aberto(lm, olho_esq, w, h)
+            and
+            olho_aberto(lm, olho_dir, w, h)
+        )
+
+        cabeca_ok = abs(angulo) < 4
+
+        centro_ok = abs(nx - w / 2) < 40
+
+        dist_ok = 20 < iris_px < 50
+
+        if olhos_ok:
+            score += 25
+
+        if cabeca_ok:
+            score += 25
+
+        if centro_ok:
+            score += 25
+
+        if dist_ok:
+            score += 25
+
+        # =================================================
+        # ESTABILIDADE
+        # =================================================
+
+        if score >= 85:
+
+            if tempo_ok_inicio is None:
+                tempo_ok_inicio = time.time()
+
+        elif score < 70:
+
+            tempo_ok_inicio = None
+
+        # =================================================
+        # HISTÓRICO
+        # =================================================
+
+        if score >= 80 and not capturado:
+
+            historico_dp.append(dp_mm)
+
+            if len(historico_dp) > 25:
+                historico_dp.pop(0)
+
+        # =================================================
+        # PRECISÃO
+        # =================================================
+
+        confiavel = False
+
+        if len(historico_dp) > 10:
+
+            desvio = np.std(historico_dp)
+
+            if desvio < 0.5:
+                confiavel = True
+
+        # =================================================
+        # CAPTURA FINAL
+        # =================================================
+
+        if (
+            tempo_ok_inicio is not None
+            and
+            time.time() - tempo_ok_inicio > 2
+            and
+            confiavel
+            and
+            not capturado
+        ):
+
+            medicao_final = np.median(historico_dp)
+
+            capturado = True
+
+        # =================================================
+        # VALIDAÇÃO
+        # =================================================
+
+        media = 0
+        desvio = 0
+        erro_max = 0
+
+        if len(historico_dp) > 6:
+
+            historico_array = np.array(historico_dp)
+
+            media = float(np.mean(historico_array))
+
+            desvio = float(np.std(historico_array))
+
+            erro_max = float(
+                np.max(
+                    np.abs(historico_array - media)
+                )
+            )
+
+        aprovado = (
+            desvio < 0.5
+            and
+            erro_max < 1.0
+        )
+
+        validacao = {
+            "media": round(media, 2),
+            "desvio": round(desvio, 3),
+            "erro_max": round(erro_max, 2),
+            "status": "APROVADO" if aprovado else "REPROVADO"
+        }
+
+        # =================================================
+        # RESET CONTROLADO
+        # =================================================
+
+        if capturado:
+
+            dp_mm = medicao_final
+
+            if (
+                not hasattr(processar_frame, "tempo_reset")
+                or
+                processar_frame.tempo_reset is None
+            ):
+
+                processar_frame.tempo_reset = time.time()
+
+            else:
+
+                if time.time() - processar_frame.tempo_reset > 3:
+
+                    resetar_medicao()
+
+                    processar_frame.tempo_reset = None
+
+        # =================================================
+        # INSTRUÇÕES
+        # =================================================
+
+        if capturado:
+
+            instrucao = "Medição concluída"
 
         else:
-            if time.time() - processar_frame.tempo_reset > 3:
-                resetar_medicao()
-                processar_frame.tempo_reset = None
-    # -----------------------------
-    # INSTRUÇÃO
-    # -----------------------------
-    if capturado:
-        instrucao = "Medição concluída"
-    else:
-        if not olhos_ok:
-            instrucao = "Abra os olhos"
-        elif not cabeca_ok:
-            instrucao = "Endireite a cabeça"
-        elif not dist_ok:
-            instrucao = "Ajuste a distância"
-        elif not centro_ok:
-            instrucao = "Centralize o rosto"
-        elif score >= 80:
-            instrucao = "Fique parado..."
-        else:
-            instrucao = "Ajustando posição..."
 
+            if not olhos_ok:
+                instrucao = "Abra os olhos"
 
-    # -----------------------------
-    # SALVAR
-    # -----------------------------
-    dados_medicao["dp"] = round(dp_mm, 1)
-    dados_medicao["dnp_e"] = round(dnp_e_mm, 1)
-    dados_medicao["dnp_d"] = round(dnp_d_mm, 1)
-    dados_medicao["score"] = score
-    dados_medicao["status"] = "OK" if capturado else "Medindo"
-    dados_medicao["instrucao"] = instrucao
-    dados_medicao["capturado"] = capturado
-    dados_medicao["validacao"] = validacao
-    dados_medicao["historico"] = historico_dp
+            elif not cabeca_ok:
+                instrucao = "Endireite a cabeça"
 
-    # -----------------------------
-    # OVERLAY
-    # -----------------------------
-    cor = (0,255,0) if capturado else (0,255,255)
+            elif not dist_ok:
+                instrucao = "Ajuste a distância"
 
-    cv2.circle(frame, (int(lx_opt), int(ly_opt)), 3, (255,0,0), -1)
-    cv2.circle(frame, (int(rx_opt), int(ry_opt)), 3, (255,0,0), -1)
-    cv2.circle(frame, (nx, ny), 4, (0,0,255), -1)
+            elif not centro_ok:
+                instrucao = "Centralize o rosto"
 
-    return frame
+            elif score >= 80:
+                instrucao = "Fique parado..."
+
+            else:
+                instrucao = "Ajustando posição..."
+
+        # =================================================
+        # SALVAR DADOS
+        # =================================================
+
+        dados_medicao["dp"] = round(dp_mm, 1)
+
+        dados_medicao["dnp_e"] = round(dnp_e_mm, 1)
+
+        dados_medicao["dnp_d"] = round(dnp_d_mm, 1)
+
+        dados_medicao["score"] = score
+
+        dados_medicao["status"] = (
+            "OK" if capturado else "Medindo"
+        )
+
+        dados_medicao["instrucao"] = instrucao
+
+        dados_medicao["capturado"] = capturado
+
+        dados_medicao["validacao"] = validacao
+
+        dados_medicao["historico"] = historico_dp
+
+        # =================================================
+        # OVERLAY
+        # =================================================
+
+        cor = (0, 255, 0) if capturado else (0, 255, 255)
+
+        cv2.circle(
+            frame,
+            (int(lx), int(ly)),
+            3,
+            (255, 0, 0),
+            -1
+        )
+
+        cv2.circle(
+            frame,
+            (int(rx), int(ry)),
+            3,
+            (255, 0, 0),
+            -1
+        )
+
+        cv2.circle(
+            frame,
+            (nx, ny),
+            4,
+            (0, 0, 255),
+            -1
+        )
+
+        cv2.putText(
+            frame,
+            f"DP: {round(dp_mm,1)} mm",
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            cor,
+            2
+        )
+
+        cv2.putText(
+            frame,
+            instrucao,
+            (20, 80),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            cor,
+            2
+        )
+
+        return frame
+
+    except Exception as e:
+
+        print("❌ Erro no processamento:")
+        print(e)
+
+        cv2.putText(
+            frame,
+            "Erro no processamento",
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2
+        )
+
+        return frame
