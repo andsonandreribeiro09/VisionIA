@@ -193,16 +193,270 @@ main{
     font-size:15px;
     cursor:pointer;
 }
+
+html,
+body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+}
+
+body{
+    background:#0b1113;
+    display:block;
+}
+
+.capture-shell{
+    width:100vw;
+    max-width:none;
+    height:100svh;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) clamp(280px, 28vw, 360px);
+    text-align:left;
+    background:#0b1113;
+}
+
+.camera-stage{
+    position:relative;
+    width:100%;
+    height:100%;
+    min-height:0;
+    overflow:hidden;
+}
+
+.capture-shell .video-container{
+    width:100%;
+    height:100%;
+    aspect-ratio:auto;
+    border-radius:0;
+    box-shadow:none;
+}
+
+.capture-shell .video-container video{
+    position:absolute;
+    inset:0;
+    object-fit:cover;
+}
+
+.capture-shell .face-guide{
+    top:48%;
+    width:min(52vw, 58vh);
+    height:min(62vw, 70vh);
+    max-width:620px;
+    max-height:720px;
+    border-width:3px;
+    box-shadow:0 0 0 999px rgba(0,0,0,0.18);
+}
+
+#instrucao{
+    position:absolute;
+    left:50%;
+    bottom:28px;
+    width:min(82%, 620px);
+    transform:translateX(-50%);
+    padding:14px 18px;
+    border-radius:8px;
+    background:rgba(0,0,0,0.62);
+    color:white;
+    font-size:clamp(16px, 2.2vw, 24px);
+    font-weight:700;
+    text-align:center;
+    text-shadow:0 1px 6px rgba(0,0,0,0.65);
+}
+
+.capture-shell .progress{
+    height:8px;
+}
+
+#progress-bar{
+    width:0%;
+    height:100%;
+    background:#20d67b;
+    transition:width 0.16s linear;
+}
+
+.metrics-panel{
+    height:100%;
+    padding:18px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    background:#f7f5ef;
+    border-left:1px solid #ded8cc;
+    overflow:auto;
+}
+
+.capture-header{
+    display:grid;
+    gap:4px;
+}
+
+.capture-header span{
+    font-size:12px;
+    font-weight:700;
+    color:#0097a7;
+    text-transform:uppercase;
+}
+
+.capture-header h1{
+    font-size:clamp(22px, 3vw, 30px);
+    line-height:1.05;
+    font-weight:800;
+    color:#1d2528;
+}
+
+.capture-header p{
+    color:#647174;
+    font-size:14px;
+    font-weight:600;
+}
+
+.capture-shell .status-pill{
+    width:100%;
+    min-height:112px;
+    margin-top:0;
+    padding:12px;
+    display:block;
+    border-radius:8px;
+    font-size:13px;
+    line-height:1.45;
+    white-space:pre-line;
+    opacity:1;
+}
+
+.capture-shell .hud{
+    margin-top:0;
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:10px;
+}
+
+.capture-shell .card{
+    min-height:86px;
+    padding:12px;
+    display:grid;
+    align-content:center;
+    gap:4px;
+    border:1px solid #e3ded5;
+    border-radius:8px;
+    box-shadow:0 8px 18px rgba(30,40,40,0.08);
+}
+
+.capture-shell .card span{
+    font-size:12px;
+    font-weight:700;
+    color:#647174;
+    text-transform:uppercase;
+}
+
+.capture-shell .card b{
+    color:#0d1b1e;
+    font-size:clamp(24px, 4vw, 34px);
+    line-height:1;
+}
+
+.capture-shell .score-card b{
+    color:#11804a;
+}
+
+.capture-shell .btn-finalizar{
+    margin-top:auto;
+    min-height:54px;
+    padding:0 16px;
+    border-radius:8px;
+    background:#006d77;
+    font-size:15px;
+}
+
+@media (max-width: 920px), (orientation: portrait){
+    .capture-shell{
+        display:block;
+        position:relative;
+    }
+
+    .camera-stage{
+        height:100svh;
+    }
+
+    .metrics-panel{
+        position:absolute;
+        left:12px;
+        right:12px;
+        bottom:12px;
+        height:auto;
+        max-height:38svh;
+        padding:12px;
+        gap:10px;
+        border:1px solid rgba(255,255,255,0.28);
+        border-radius:8px;
+        background:rgba(247,245,239,0.94);
+        box-shadow:0 14px 42px rgba(0,0,0,0.28);
+    }
+
+    .capture-header h1{
+        font-size:20px;
+    }
+
+    .capture-header p,
+    .capture-header span{
+        display:none;
+    }
+
+    .capture-shell .status-pill{
+        min-height:0;
+        font-size:12px;
+        padding:9px 10px;
+    }
+
+    .capture-shell .hud{
+        grid-template-columns:repeat(4, minmax(0, 1fr));
+        gap:8px;
+    }
+
+    .capture-shell .card{
+        min-height:68px;
+        padding:8px;
+    }
+
+    .capture-shell .card span{
+        font-size:10px;
+    }
+
+    .capture-shell .card b{
+        font-size:22px;
+    }
+
+    .capture-shell .btn-finalizar{
+        min-height:46px;
+    }
+
+    #instrucao{
+        bottom:calc(38svh + 28px);
+        font-size:18px;
+    }
+}
+
+@media (max-width: 620px){
+    .capture-shell .hud{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+
+    .metrics-panel{
+        max-height:48svh;
+    }
+
+    #instrucao{
+        bottom:calc(48svh + 28px);
+    }
+}
 </style>
 </head>
 
 <body data-paciente='{{ paciente_id | tojson }}'>
 
-<main>
+<main class="capture-shell">
 
-{% if paciente %}
-<h3>Olá 🤓 <b>{{ paciente["nome"] }}</b></h3>
-{% endif %}
+<section class="camera-stage">
 
 <!-- VIDEO -->
 <div class="video-container">
@@ -221,6 +475,17 @@ main{
     </div>
 
 </div>
+
+</section>
+
+<aside class="metrics-panel">
+    <div class="capture-header">
+        <span>VisionAI</span>
+        <h1>Captura</h1>
+        {% if paciente %}
+        <p>{{ paciente["nome"] }}</p>
+        {% endif %}
+    </div>
 
 <!-- STATUS -->
 <div id="status" class="status-pill">
@@ -259,6 +524,8 @@ main{
     Finalizar medição
 </button>
 
+</aside>
+
 </main>
 
 <script>
@@ -286,11 +553,11 @@ let processandoFrame = false;
 const videoEl = document.getElementById("video");
 const frameCanvas = document.createElement("canvas");
 const frameCtx = frameCanvas.getContext("2d");
-const FRAME_INTERVAL_MS = 280;
-const DATA_INTERVAL_MS = 300;
+const FRAME_INTERVAL_MS = 180;
+const DATA_INTERVAL_MS = 220;
 const CAPTURE_SCORE_MIN = 85;
 const CAPTURE_RESET_SCORE = 75;
-const CAPTURE_HOLD_MS = 1800;
+const CAPTURE_HOLD_MS = 700;
 
 async function iniciarCameraTablet(){
     try{
@@ -371,7 +638,7 @@ let loopIA = setInterval(async () => {
         Faixa: ${data.faixa}
         DP: ${data.dp.toFixed(1)} mm (ideal ${data.dp_min}-${data.dp_max})${distanciaTexto}
         Score: ${score}% | ${estabilidadeTexto}
-        Capturas: ${medicoes.length}/6
+        Capturas: ${medicoes.length}/${TOTAL_CAPTURAS}
         `;
 
         // =========================
@@ -432,8 +699,8 @@ let loopIA = setInterval(async () => {
                 tempoInicio = null;
                 progressBar.style.width = "0%";
 
-                // 🔥 SE JÁ TEM 6 → FINALIZA
-                if(medicoes.length >= 6){
+                // Finaliza ao atingir o total configurado
+                if(medicoes.length >= TOTAL_CAPTURAS){
                     finalizar();
                 }
             }
@@ -445,7 +712,7 @@ let loopIA = setInterval(async () => {
         }
 
     }catch(e){
-        statusEl.innerText = `📸 ${medicoes.length}/6 capturas concluídas`;
+        statusEl.innerText = `${medicoes.length}/${TOTAL_CAPTURAS} capturas concluídas`;
     }
 
 }, DATA_INTERVAL_MS);
@@ -455,7 +722,7 @@ let loopIA = setInterval(async () => {
 // CONFIG NOVA
 // =========================
 let medicoes = [];
-const TOTAL_CAPTURAS = 6;
+const TOTAL_CAPTURAS = 4;
 
 
 // =========================

@@ -40,6 +40,8 @@ MAX_MM_PER_PX = _env_float("VISIONAI_MAX_MM_PER_PX", 0.80)
 CAPTURE_MIN_SCORE = _env_float("VISIONAI_CAPTURE_MIN_SCORE", 85.0)
 CAPTURE_RESET_SCORE = _env_float("VISIONAI_CAPTURE_RESET_SCORE", 70.0)
 MAX_DP_STD_MM = _env_float("VISIONAI_MAX_DP_STD_MM", 0.7)
+MIN_STABLE_FRAMES = int(_env_float("VISIONAI_MIN_STABLE_FRAMES", 6))
+MIN_STABLE_SECONDS = _env_float("VISIONAI_MIN_STABLE_SECONDS", 0.9)
 IRIS_PX_AT_TARGET_DISTANCE = _env_float("VISIONAI_IRIS_PX_AT_40CM", 0.0)
 
 # -----------------------------
@@ -363,7 +365,7 @@ def processar_frame(frame):
     # -----------------------------
     confiavel = False
 
-    if len(historico_dp) > 10:
+    if len(historico_dp) >= MIN_STABLE_FRAMES:
         desvio = np.std(historico_dp)
         if desvio < MAX_DP_STD_MM:
             confiavel = True
@@ -372,7 +374,7 @@ def processar_frame(frame):
     # -----------------------------
     if (
         tempo_ok_inicio is not None and
-        time.time() - tempo_ok_inicio > 2.0 and
+        time.time() - tempo_ok_inicio > MIN_STABLE_SECONDS and
         confiavel and
         not capturado
     ):
