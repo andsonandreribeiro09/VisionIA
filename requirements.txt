@@ -1,6 +1,7 @@
 flask
-opencv-python-headless
 mediapipe
 numpy
 reportlab
 gunicorn==23.0.0
+opencv-python-headless
+opencv-contrib-python-headless
