@@ -65,7 +65,7 @@ def olho_aberto(landmarks, indices, w, h):
 # -----------------------------
 # SUAVIZAÇÃO
 # -----------------------------
-smooth = {"lx": None, "ly": None, "rx": None, "ry": None, "nx": None, "ny": None}
+smooth = {"lx": None, "ly": None, "rx": None, "ry": None, "nx": None, "ny": None, "mx": None}
 
 def suavizar(a, b):
     if a is None:
@@ -156,6 +156,7 @@ def processar_frame(frame):
         return frame
 
     nx, ny = int(lm[1].x * w), int(lm[1].y * h)
+    mx = int(lm[168].x * w) if len(lm) > 168 else nx
 
     # -----------------------------
     # SUAVIZAÇÃO
@@ -166,10 +167,12 @@ def processar_frame(frame):
     smooth["ry"] = suavizar(smooth["ry"], ry)
     smooth["nx"] = suavizar(smooth["nx"], nx)
     smooth["ny"] = suavizar(smooth["ny"], ny)
+    smooth["mx"] = suavizar(smooth["mx"], mx)
 
     lx, ly = smooth["lx"], smooth["ly"]
     rx, ry = smooth["rx"], smooth["ry"]
     nx, ny = smooth["nx"], smooth["ny"]
+    mx = smooth["mx"]
 
     # -----------------------------
     # ÂNGULO
@@ -243,7 +246,7 @@ def processar_frame(frame):
     # -----------------------------
     dp_px = np.linalg.norm([rx_opt - lx_opt, ry_opt - ly_opt])
 
-    centro_face = (lx_opt + rx_opt) / 2
+    centro_face = np.clip(mx, min(lx_opt, rx_opt), max(lx_opt, rx_opt))
 
     dnp_e_px = abs(lx_opt - centro_face)
     dnp_d_px = abs(rx_opt - centro_face)

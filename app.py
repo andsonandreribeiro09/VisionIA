@@ -27,7 +27,9 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_PACIENTES_MEDICOES = os.path.join(BASE_DIR, "pacientes_medicoes.csv")
+DATA_DIR = os.getenv("VISIONAI_DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+CSV_PACIENTES_MEDICOES = os.path.join(DATA_DIR, "pacientes_medicoes.csv")
 CSV_LOCK = threading.Lock()
 CSV_COLUNAS = [
     "paciente_id",
@@ -155,6 +157,11 @@ def registrar_medicao_no_csv(paciente_id, dados_medicao_csv):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 
 @app.route("/paciente")
@@ -1054,6 +1061,9 @@ def salvar_lote():
     cursor = conn.cursor()
 
     dps = []
+    dnps_e = []
+    dnps_d = []
+    scores = []
     capturas_csv = []
     imagens_salvas = []
 
@@ -1078,6 +1088,9 @@ def salvar_lote():
 
         imagens_salvas.append(caminho)
         dps.append(dp)
+        dnps_e.append(dnp_e)
+        dnps_d.append(dnp_d)
+        scores.append(score)
         capturas_csv.append({
             "dp": dp,
             "dnp_e": dnp_e,
@@ -1090,6 +1103,9 @@ def salvar_lote():
     # 📊 VALIDAÇÃO
     # =========================
     media = float(np.mean(dps))
+    dnp_e_media = float(np.mean(dnps_e))
+    dnp_d_media = float(np.mean(dnps_d))
+    score_medio = float(np.mean(scores))
     desvio = float(np.std(dps))
     erro_max = float(max([abs(x - media) for x in dps]))
 
@@ -1114,9 +1130,9 @@ def salvar_lote():
     """, (
         paciente_id,
         round(media, 2),  # 🔥 usa média
-        dnp_e,
-        dnp_d,
-        score,
+        round(dnp_e_media, 2),
+        round(dnp_d_media, 2),
+        round(score_medio, 2),
         caminho_final,
         json.dumps(validacao),
         json.dumps(dps)
@@ -1135,9 +1151,9 @@ def salvar_lote():
     registrar_medicao_no_csv(paciente_id, {
         "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "dp": round(media, 2),
-        "dnp_e": dnp_e,
-        "dnp_d": dnp_d,
-        "score": score,
+        "dnp_e": round(dnp_e_media, 2),
+        "dnp_d": round(dnp_d_media, 2),
+        "score": round(score_medio, 2),
         "status_validacao": status,
         "validacao_json": json.dumps(validacao, ensure_ascii=False),
         "historico_json": json.dumps(dps, ensure_ascii=False),
@@ -1149,6 +1165,8 @@ def salvar_lote():
     return {
         "status": "ok",
         "dp_medio": round(media, 2),
+        "dnp_e_media": round(dnp_e_media, 2),
+        "dnp_d_media": round(dnp_d_media, 2),
         "desvio": round(desvio, 2),
         "erro_max": round(erro_max, 2),
         "status_validacao": status
@@ -1192,4 +1210,6 @@ def stop_camera():
 # -----------------------------
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_DEBUG", "1") == "1"
+    app.run(host="0.0.0.0", port=port, debug=debug)

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: visionai
+    runtime: python
+    disk:
+      name: visionai-data
+      mountPath: /var/data
+      sizeGB: 1
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /healthz
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: VISIONAI_DATA_DIR
+        value: /var/data
+      - key: VISIONAI_DB_PATH
+        value: /var/data/visionai.db
