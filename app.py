@@ -663,45 +663,84 @@ def salvar_receita():
 def iniciar_camera():
     global camera
 
-    if camera is None or not camera.isOpened():
-        print("📸 Ligando câmera...")
+    if camera is None:
+
+        print("📸 Tentando ligar câmera...")
+
         camera = cv2.VideoCapture(0)
 
+        # 🔥 VERIFICA SE A CÂMERA EXISTE
+        if not camera.isOpened():
+
+            print("❌ Nenhuma câmera disponível")
+
+            camera.release()
+            camera = None
+
+            return False
+
+    return True
+
+
 def gen_frames():
+
     global camera, camera_ativa
 
-    iniciar_camera()
+    # 🔥 SE NÃO CONSEGUIR ABRIR A CÂMERA
+    if not iniciar_camera():
 
-    camera_ativa = True  # 🔥 sempre liga ao iniciar
+        print("🚫 Stream cancelado")
+
+        return
+
+    camera_ativa = True
 
     while True:
 
-        # 🔥 PARA AQUI
+        # 🔥 PARA STREAM
         if not camera_ativa:
+
             print("🛑 Parando stream da câmera...")
             break
 
-        if camera is None or not camera.isOpened():
+        # 🔥 CÂMERA INVÁLIDA
+        if camera is None:
+
+            print("❌ Camera None")
             break
 
         success, frame = camera.read()
 
+        # 🔥 FALHA DE LEITURA
         if not success:
+
+            print("❌ Falha ao capturar frame")
             break
 
+        # 🔥 PROCESSA FRAME
         frame = processar_frame(frame)
 
         ret, buffer = cv2.imencode('.jpg', frame)
+
+        if not ret:
+            continue
+
         frame_bytes = buffer.tobytes()
 
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        yield (
+            b'--frame\r\n'
+            b'Content-Type: image/jpeg\r\n\r\n' +
+            frame_bytes +
+            b'\r\n'
+        )
 
-    # 🔥 FINALIZA CORRETAMENTE
+    # 🔥 FINALIZA
     if camera is not None:
+
         camera.release()
         camera = None
-        print("📴 Câmera desligada (gen_frames)")
+
+        print("📴 Câmera desligada")
 
 @app.route('/video_feed')
 def video_feed():
