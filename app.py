@@ -25,6 +25,7 @@ app = Flask(__name__)
 
 # 🔐 segurança
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
+DEBUG_VISIONAI = os.getenv("VISIONAI_DEBUG", "0") == "1"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.getenv("VISIONAI_DATA_DIR", BASE_DIR)
@@ -53,6 +54,10 @@ CSV_COLUNAS = [
     "fotos_capturadas",
     "foto_final",
 ]
+
+def debug_log(*args):
+    if DEBUG_VISIONAI:
+        print(*args)
 
 # -----------------------------
 # CONFIG INICIAL
@@ -782,14 +787,14 @@ def dados():
         conn.close()
 
         # 🔥 DEBUG AGORA NO LUGAR CERTO
-        print("===================================")
-        print("PACIENTE RAW:", paciente)
+        debug_log("===================================")
+        debug_log("PACIENTE RAW:", paciente)
 
         if paciente:
             sexo = (paciente["sexo"] or "outro").lower().strip()
 
-            print("SEXO:", sexo)
-            print("DATA NASC:", paciente["data_nascimento"])
+            debug_log("SEXO:", sexo)
+            debug_log("DATA NASC:", paciente["data_nascimento"])
 
             # =========================
             # 🎂 CALCULA IDADE
@@ -808,10 +813,10 @@ def dados():
                         idade -= 1
 
                 except Exception as e:
-                    print("ERRO IDADE:", e)
+                    debug_log("ERRO IDADE:", e)
                     idade = None
 
-            print("IDADE:", idade)
+            debug_log("IDADE:", idade)
 
     # =========================
     # 🧠 PERFIL BIOMÉTRICO
@@ -830,7 +835,7 @@ def dados():
         else:
             dp_min, dp_max = 58, 70
 
-    print("PERFIL FINAL:", faixa, dp_min, dp_max)
+    debug_log("PERFIL FINAL:", faixa, dp_min, dp_max)
 
     # =========================
     # 📊 VALIDAÇÃO EM TEMPO REAL
@@ -858,6 +863,10 @@ def dados():
         "score": dados_medicao.get("score", 0),
         "status": dados_medicao.get("status", ""),
         "instrucao": dados_medicao.get("instrucao", ""),
+        "capturado": dados_medicao.get("capturado", False),
+        "confiavel": dados_medicao.get("confiavel", False),
+        "distancia_cm": dados_medicao.get("distancia_cm"),
+        "iris_px": dados_medicao.get("iris_px"),
 
         # 🔥 INTELIGÊNCIA
         "faixa": faixa,
@@ -1182,12 +1191,17 @@ def process_frame():
     np_arr = np.frombuffer(img_data, np.uint8)
     frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-    frame = processar_frame(frame)
+    processar_frame(frame)
 
-    _, buffer = cv2.imencode(".jpg", frame)
-    img_base64 = base64.b64encode(buffer).decode("utf-8")
-
-    return jsonify({"image": img_base64})
+    return jsonify({
+        "status": "ok",
+        "dp": dados_medicao.get("dp", 0),
+        "dnp_e": dados_medicao.get("dnp_e", 0),
+        "dnp_d": dados_medicao.get("dnp_d", 0),
+        "score": dados_medicao.get("score", 0),
+        "confiavel": dados_medicao.get("confiavel", False),
+        "iris_px": dados_medicao.get("iris_px"),
+    })
 
 
 camera_ativa = True

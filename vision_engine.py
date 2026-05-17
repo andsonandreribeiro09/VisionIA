@@ -15,8 +15,32 @@ IS_RENDER = os.environ.get("RENDER") is not None
 # -----------------------------
 # CALIBRAÇÃO DE CÂMERA
 # -----------------------------
-camera_matrix = np.load("camera_matrix.npy")
-dist_coeffs = np.load("dist_coeffs.npy")
+def _env_float(nome, padrao):
+    try:
+        return float(os.environ.get(nome, padrao))
+    except (TypeError, ValueError):
+        return padrao
+
+
+# No Render a imagem vem do navegador do tablet/iPad, nao de uma camera USB
+# do servidor. Usar uma matrix calibrada em outra camera distorce os pontos.
+USE_CAMERA_CALIBRATION = os.environ.get("VISIONAI_USE_CAMERA_CALIBRATION", "0") == "1"
+
+camera_matrix = None
+dist_coeffs = None
+if USE_CAMERA_CALIBRATION:
+    camera_matrix = np.load("camera_matrix.npy")
+    dist_coeffs = np.load("dist_coeffs.npy")
+
+IPD_REAL_MM = _env_float("VISIONAI_IPD_REAL_MM", 63.0)
+IRIS_REAL_MM = _env_float("VISIONAI_IRIS_REAL_MM", 11.7)
+TARGET_DISTANCE_CM = _env_float("VISIONAI_TARGET_DISTANCE_CM", 40.0)
+MIN_MM_PER_PX = _env_float("VISIONAI_MIN_MM_PER_PX", 0.08)
+MAX_MM_PER_PX = _env_float("VISIONAI_MAX_MM_PER_PX", 0.80)
+CAPTURE_MIN_SCORE = _env_float("VISIONAI_CAPTURE_MIN_SCORE", 85.0)
+CAPTURE_RESET_SCORE = _env_float("VISIONAI_CAPTURE_RESET_SCORE", 70.0)
+MAX_DP_STD_MM = _env_float("VISIONAI_MAX_DP_STD_MM", 0.7)
+IRIS_PX_AT_TARGET_DISTANCE = _env_float("VISIONAI_IRIS_PX_AT_40CM", 0.0)
 
 # -----------------------------
 # CONFIG MEDIAPIPE
@@ -34,10 +58,11 @@ detector = vision.FaceLandmarker.create_from_options(options)
 # -----------------------------
 # ESTADO GLOBAL IA
 # -----------------------------
-IRIS_REAL_MM = 11.7
 escala_suave = None
 
 historico_dp = []
+historico_dnp_e = []
+historico_dnp_d = []
 capturado = False
 medicao_final = None
 tempo_ok_inicio = None
@@ -49,6 +74,9 @@ dados_medicao = {
     "score": 0,
     "status": "Iniciando...",
     "instrucao": "Posicione seu rosto",
+    "confiavel": False,
+    "distancia_cm": None,
+    "iris_px": None,
 }
 
 # -----------------------------
@@ -78,12 +106,16 @@ def suavizar(a, b):
 # RESET MEDIÇÃO (🔥 AQUI)
 # -----------------------------
 def resetar_medicao():
-    global historico_dp, capturado, medicao_final, tempo_ok_inicio
+    global historico_dp, historico_dnp_e, historico_dnp_d
+    global capturado, medicao_final, tempo_ok_inicio
 
     historico_dp = []
+    historico_dnp_e = []
+    historico_dnp_d = []
     capturado = False
     medicao_final = None
     tempo_ok_inicio = None
+    dados_medicao["confiavel"] = False
 
 
 # -----------------------------
@@ -105,7 +137,7 @@ def centro_iris(landmarks, indices, w, h):
 # PROCESSAMENTO PRINCIPAL
 # -----------------------------
 def processar_frame(frame):
-    global escala_suave, historico_dp
+    global escala_suave, historico_dp, historico_dnp_e, historico_dnp_d
     global capturado, medicao_final, dados_medicao
     global tempo_ok_inicio
 
@@ -114,17 +146,20 @@ def processar_frame(frame):
     # -----------------------------
     # CORREÇÃO DE DISTORÇÃO (ESSENCIAL)
     # -----------------------------
-    if not hasattr(processar_frame, "newcameramtx"):
+    if USE_CAMERA_CALIBRATION and not hasattr(processar_frame, "newcameramtx"):
         processar_frame.newcameramtx, _ = cv2.getOptimalNewCameraMatrix(
             camera_matrix, dist_coeffs, (w, h), 0.3, (w, h)
         )
 
-    frame = cv2.undistort(frame, camera_matrix, dist_coeffs, None, processar_frame.newcameramtx)
+    if USE_CAMERA_CALIBRATION:
+        frame = cv2.undistort(frame, camera_matrix, dist_coeffs, None, processar_frame.newcameramtx)
 
     # timestamp
     frame_id = getattr(processar_frame, "frame_id", 0) + 1
     processar_frame.frame_id = frame_id
-    timestamp = int(time.time() * 1000)
+    ultimo_timestamp = getattr(processar_frame, "ultimo_timestamp", 0)
+    timestamp = max(int(time.time() * 1000), ultimo_timestamp + 1)
+    processar_frame.ultimo_timestamp = timestamp
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -132,7 +167,10 @@ def processar_frame(frame):
 
     if not result.face_landmarks:
         resetar_medicao()  # 🔥 AQUI
+        dados_medicao["score"] = 0
+        dados_medicao["status"] = "Medindo"
         dados_medicao["instrucao"] = "Posicione seu rosto"
+        dados_medicao["iris_px"] = None
         return frame
 
     lm = result.face_landmarks[0]
@@ -150,9 +188,13 @@ def processar_frame(frame):
     # 🔥 VALIDAÇÃO DOS OLHOS (ANTI-ERRO)
     # =========================
     if lx <= 0 or rx <= 0:
+        dados_medicao["score"] = 0
+        dados_medicao["confiavel"] = False
         return frame
 
     if abs(lx - rx) < 10:
+        dados_medicao["score"] = 0
+        dados_medicao["confiavel"] = False
         return frame
 
     nx, ny = int(lm[1].x * w), int(lm[1].y * h)
@@ -186,7 +228,10 @@ def processar_frame(frame):
 
     if iris_px < 5:
         resetar_medicao()  # 🔥 evita lixo no histórico
+        dados_medicao["score"] = 0
+        dados_medicao["status"] = "Medindo"
         dados_medicao["instrucao"] = "Aproxime o rosto"
+        dados_medicao["iris_px"] = round(float(iris_px), 2)
         return frame
 
     # -----------------------------
@@ -195,9 +240,11 @@ def processar_frame(frame):
     dist_olhos_px = np.linalg.norm([rx - lx, ry - ly])
 
     if dist_olhos_px < 1:
+        dados_medicao["score"] = 0
+        dados_medicao["confiavel"] = False
         return frame
 
-    escala_olho = 63 / dist_olhos_px
+    escala_olho = IPD_REAL_MM / dist_olhos_px
     escala_iris = IRIS_REAL_MM / iris_px
 
     peso_iris = 0.4 if iris_px > 20 else 0.2
@@ -208,7 +255,11 @@ def processar_frame(frame):
     else:
         escala_suave = 0.9 * escala_suave + 0.1 * escala_raw
 
-    escala = np.clip(escala_suave, 0.3, 0.6)
+    escala = np.clip(escala_suave, MIN_MM_PER_PX, MAX_MM_PER_PX)
+
+    distancia_cm = None
+    if IRIS_PX_AT_TARGET_DISTANCE > 0:
+        distancia_cm = (TARGET_DISTANCE_CM * IRIS_PX_AT_TARGET_DISTANCE) / iris_px
 
     # -----------------------------
     # -----------------------------
@@ -219,6 +270,8 @@ def processar_frame(frame):
 
     norm = np.sqrt(dx**2 + dy**2)
     if norm == 0:
+        dados_medicao["score"] = 0
+        dados_medicao["confiavel"] = False
         return frame
 
     ux = dx / norm
@@ -268,8 +321,11 @@ def processar_frame(frame):
 
     olhos_ok = olho_aberto(lm, olho_esq, w, h) and olho_aberto(lm, olho_dir, w, h)
     cabeca_ok = abs(angulo) < 4
-    centro_ok = abs(nx - w/2) < 40
-    dist_ok = 20 < iris_px < 50
+    centro_ok = abs(nx - w/2) < w * 0.08
+    if distancia_cm is not None:
+        dist_ok = abs(distancia_cm - TARGET_DISTANCE_CM) <= 7
+    else:
+        dist_ok = 8 < iris_px < 90
 
     if olhos_ok: score += 25
     if cabeca_ok: score += 25
@@ -279,8 +335,8 @@ def processar_frame(frame):
     # -----------------------------
     # ESTABILIDADE (🔥 MELHORADO)
     # -----------------------------
-    MARGEM_OK = 85
-    MARGEM_RESET = 70
+    MARGEM_OK = CAPTURE_MIN_SCORE
+    MARGEM_RESET = CAPTURE_RESET_SCORE
 
     if score >= MARGEM_OK:
         if tempo_ok_inicio is None:
@@ -292,11 +348,15 @@ def processar_frame(frame):
     # -----------------------------
     # HISTÓRICO
     # -----------------------------
-    if score >= 80 and not capturado:
+    if score >= CAPTURE_MIN_SCORE and not capturado:
         historico_dp.append(dp_mm)
+        historico_dnp_e.append(dnp_e_mm)
+        historico_dnp_d.append(dnp_d_mm)
 
         if len(historico_dp) > 25:
             historico_dp.pop(0)
+            historico_dnp_e.pop(0)
+            historico_dnp_d.pop(0)
 
     # -----------------------------
     # PRECISÃO
@@ -305,7 +365,7 @@ def processar_frame(frame):
 
     if len(historico_dp) > 10:
         desvio = np.std(historico_dp)
-        if desvio < 0.5:
+        if desvio < MAX_DP_STD_MM:
             confiavel = True
 
     # CAPTURA FINAL (AJUSTADO)
@@ -316,7 +376,11 @@ def processar_frame(frame):
         confiavel and
         not capturado
     ):
-        medicao_final = np.median(historico_dp)
+        medicao_final = {
+            "dp": float(np.median(historico_dp)),
+            "dnp_e": float(np.median(historico_dnp_e)),
+            "dnp_d": float(np.median(historico_dnp_d)),
+        }
         capturado = True
 
 
@@ -330,7 +394,7 @@ def processar_frame(frame):
         desvio = float(np.std(historico_array))
         erro_max = float(np.max(np.abs(historico_array - media)))
 
-    aprovado = desvio < 0.5 and erro_max < 1.0
+    aprovado = desvio < MAX_DP_STD_MM and erro_max < 1.2
 
     validacao = {
         "media": round(media, 2),
@@ -343,7 +407,9 @@ def processar_frame(frame):
     # =========================
     if capturado:
 
-        dp_mm = medicao_final
+        dp_mm = medicao_final["dp"]
+        dnp_e_mm = medicao_final["dnp_e"]
+        dnp_d_mm = medicao_final["dnp_d"]
 
         # cria variável própria do reset
         if not hasattr(processar_frame, "tempo_reset") or processar_frame.tempo_reset is None:
@@ -364,7 +430,10 @@ def processar_frame(frame):
         elif not cabeca_ok:
             instrucao = "Endireite a cabeça"
         elif not dist_ok:
-            instrucao = "Ajuste a distância"
+            if distancia_cm is not None:
+                instrucao = f"Ajuste para {TARGET_DISTANCE_CM:.0f} cm"
+            else:
+                instrucao = "Mantenha 40 cm da camera"
         elif not centro_ok:
             instrucao = "Centralize o rosto"
         elif score >= 80:
@@ -383,6 +452,9 @@ def processar_frame(frame):
     dados_medicao["status"] = "OK" if capturado else "Medindo"
     dados_medicao["instrucao"] = instrucao
     dados_medicao["capturado"] = capturado
+    dados_medicao["confiavel"] = confiavel or capturado
+    dados_medicao["distancia_cm"] = round(distancia_cm, 1) if distancia_cm is not None else None
+    dados_medicao["iris_px"] = round(float(iris_px), 2)
     dados_medicao["validacao"] = validacao
     dados_medicao["historico"] = historico_dp
 
