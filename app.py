@@ -1,26 +1,63 @@
-from flask import Flask, render_template, Response, request, redirect, jsonify, session
-import cv2
-from vision_engine import processar_frame, carregar_armacao
-import base64
+# ------------------------------
+# Imports da biblioteca padrão
+# ------------------------------
 import os
-from datetime import datetime
+import csv
+import cv2
+import json
+import base64
+import threading
 from database import conectar
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet
+from datetime import datetime
+# ------------------------------
+# Imports de bibliotecas externas
+# ------------------------------
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from flask import send_file
+from reportlab.lib.styles import getSampleStyleSheet
+from vision_engine import processar_frame, dados_medicao
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from flask import Flask, render_template, Response, request, redirect, jsonify, session, send_file
+
+
 
 app = Flask(__name__)
 
 # 🔐 segurança
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_PACIENTES_MEDICOES = os.path.join(BASE_DIR, "pacientes_medicoes.csv")
+CSV_LOCK = threading.Lock()
+CSV_COLUNAS = [
+    "paciente_id",
+    "nome",
+    "rg",
+    "data_nascimento",
+    "sexo",
+    "idade",
+    "telefone",
+    "data_exame",
+    "cadastro_em",
+    "medicao_em",
+    "dp",
+    "dnp_e",
+    "dnp_d",
+    "score",
+    "status_validacao",
+    "validacao_json",
+    "historico_json",
+    "capturas_json",
+    "fotos_capturadas",
+    "foto_final",
+]
+
 # -----------------------------
 # CONFIG INICIAL
 # -----------------------------
 
-carregar_armacao("armacao1.png")
-
+#carregar_armacao("Police - VPL599 - Front.png")
+camera = None
 # -----------------------------
 # HELPERS
 # -----------------------------
@@ -29,6 +66,87 @@ def get_db():
     conn = conectar()
     conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     return conn
+
+
+def carregar_paciente(paciente_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
+    paciente = cursor.fetchone()
+    conn.close()
+    return paciente
+
+
+def ler_linhas_csv():
+    if not os.path.exists(CSV_PACIENTES_MEDICOES):
+        return []
+
+    with open(CSV_PACIENTES_MEDICOES, "r", newline="", encoding="utf-8-sig") as arquivo:
+        return list(csv.DictReader(arquivo))
+
+
+def escrever_linhas_csv(linhas):
+    with open(CSV_PACIENTES_MEDICOES, "w", newline="", encoding="utf-8-sig") as arquivo:
+        writer = csv.DictWriter(arquivo, fieldnames=CSV_COLUNAS, extrasaction="ignore")
+        writer.writeheader()
+        for linha in linhas:
+            writer.writerow({coluna: linha.get(coluna, "") for coluna in CSV_COLUNAS})
+
+
+def salvar_linha_csv(paciente_id, dados):
+    paciente_id = str(paciente_id)
+
+    with CSV_LOCK:
+        linhas = ler_linhas_csv()
+        linha_existente = None
+
+        for linha in linhas:
+            if linha.get("paciente_id") == paciente_id:
+                linha_existente = linha
+                break
+
+        if linha_existente is None:
+            linha_existente = {"paciente_id": paciente_id}
+            linhas.append(linha_existente)
+
+        for chave, valor in dados.items():
+            if chave in CSV_COLUNAS:
+                linha_existente[chave] = "" if valor is None else valor
+
+        escrever_linhas_csv(linhas)
+
+
+def registrar_paciente_no_csv(paciente):
+    salvar_linha_csv(paciente["id"], {
+        "paciente_id": paciente["id"],
+        "nome": paciente.get("nome"),
+        "rg": paciente.get("rg"),
+        "data_nascimento": paciente.get("data_nascimento"),
+        "sexo": paciente.get("sexo"),
+        "idade": paciente.get("idade"),
+        "telefone": paciente.get("telefone"),
+        "data_exame": paciente.get("data_exame"),
+        "cadastro_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    })
+
+
+def registrar_medicao_no_csv(paciente_id, dados_medicao_csv):
+    paciente = carregar_paciente(paciente_id)
+    dados = {}
+
+    if paciente:
+        dados.update({
+            "nome": paciente.get("nome"),
+            "rg": paciente.get("rg"),
+            "data_nascimento": paciente.get("data_nascimento"),
+            "sexo": paciente.get("sexo"),
+            "idade": paciente.get("idade"),
+            "telefone": paciente.get("telefone"),
+            "data_exame": paciente.get("data_exame"),
+        })
+
+    dados.update(dados_medicao_csv)
+    salvar_linha_csv(paciente_id, dados)
 
 # -----------------------------
 # ROTAS
@@ -67,94 +185,123 @@ def dashboard():
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) as total FROM pacientes")
-    total_pacientes = cursor.fetchone()["total"]
+    paciente_id = request.args.get("paciente_id")
 
-    cursor.execute("SELECT COUNT(*) as total FROM receitas")
-    total_receitas = cursor.fetchone()["total"]
-
-    cursor.execute("SELECT COUNT(*) as total FROM armacoes")
-    total_armacoes = cursor.fetchone()["total"]
-
-    conn.close()
-
-    return render_template("dashboard.html",
-                           total_pacientes=total_pacientes,
-                           total_receitas=total_receitas,
-                           total_armacoes=total_armacoes)
-
-
-@app.route('/dashboard/<int:paciente_id>')
-def dashboard_paciente(paciente_id):
-    conn = get_db()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
-    paciente = cursor.fetchone()
-
-    cursor.execute("""
-        SELECT * FROM pedidos
-        WHERE paciente_id=?
-        ORDER BY id DESC LIMIT 1
-    """, (paciente_id,))
-    pedido = cursor.fetchone()
-
+    paciente = None
+    medicoes = []
+    medicao = None
+    receitas = []
     armacao = None
-    if pedido:
-        cursor.execute("SELECT * FROM armacoes WHERE id=?", (pedido["armacao"],))
+
+    # lista lateral
+    cursor.execute("SELECT id, nome FROM pacientes ORDER BY nome")
+    pacientes = cursor.fetchall()
+
+    if paciente_id:
+        # PACIENTE
+        cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
+        paciente = cursor.fetchone()
+
+        # HISTÓRICO DE MEDIÇÕES
+        cursor.execute("""
+            SELECT dp, dnp_e, dnp_d, score, data
+            FROM medicoes
+            WHERE paciente_id=?
+            ORDER BY id DESC
+            LIMIT 5
+        """, (paciente_id,))
+        medicoes = cursor.fetchall()
+
+        # ÚLTIMA MEDIÇÃO
+        if medicoes:
+            medicao = medicoes[0]
+
+        # RECEITAS
+        cursor.execute("""
+            SELECT * FROM receitas
+            WHERE paciente_id=?
+            ORDER BY id DESC
+        """, (paciente_id,))
+        receitas = cursor.fetchall()
+
+        # ARMAÇÃO
+        cursor.execute("""
+            SELECT a.*
+            FROM pedidos p
+            JOIN armacoes a ON p.armacao = a.id
+            WHERE p.paciente_id=?
+            ORDER BY p.id DESC LIMIT 1
+        """, (paciente_id,))
         armacao = cursor.fetchone()
 
     conn.close()
 
     return render_template("dashboard.html",
-                           paciente=paciente,
-                           pedido=pedido,
-                           armacao=armacao)
+        paciente=paciente,
+        medicoes=medicoes,
+        medicao=medicao,
+        receitas=receitas,
+        armacao=armacao,
+        pacientes=pacientes
+    )
 
 
 @app.route("/prontuario/<int:id>")
 def prontuario(id):
+    import json
+
     conn = get_db()
     cursor = conn.cursor()
 
     # PACIENTE
     cursor.execute("SELECT * FROM pacientes WHERE id=?", (id,))
     paciente = cursor.fetchone()
+    paciente = dict(paciente) if paciente else None
 
     # RECEITAS
-    cursor.execute("""
-    SELECT * FROM receitas
-    WHERE paciente_id=?
-    ORDER BY id DESC
-    """, (id,))
+    cursor.execute("SELECT * FROM receitas WHERE paciente_id=? ORDER BY id DESC", (id,))
     receitas = cursor.fetchall()
+    receitas = [dict(r) for r in receitas]
 
     # MEDIÇÃO (última)
-    cursor.execute("""
-    SELECT dp, dnp_e, dnp_d, score, data
-    FROM medicoes
-    WHERE paciente_id=?
-    ORDER BY id DESC LIMIT 1
-    """, (id,))
+    cursor.execute("SELECT * FROM medicoes WHERE paciente_id=? ORDER BY id DESC LIMIT 1", (id,))
     medicao = cursor.fetchone()
+    medicao = dict(medicao) if medicao else None
 
-    # ARMAÇÃO (via pedido)
+    if medicao:
+        # Validação
+        if medicao.get("validacao_json"):
+            medicao["validacao"] = json.loads(medicao["validacao_json"])
+        else:
+            medicao["validacao"] = None
+
+        # Histórico
+        if medicao.get("historico_json"):
+            medicao["historico"] = [float(x) for x in json.loads(medicao["historico_json"])]
+        else:
+            medicao["historico"] = None
+
+    # ARMAÇÃO
     cursor.execute("""
-    SELECT a.modelo, a.marca, a.tamanho, a.material
-    FROM pedidos p
-    JOIN armacoes a ON p.armacao = a.id
-    WHERE p.paciente_id=?
-    ORDER BY p.id DESC LIMIT 1
+        SELECT a.modelo, a.marca, a.tamanho, a.material
+        FROM pedidos p
+        JOIN armacoes a ON p.armacao = a.id
+        WHERE p.paciente_id=?
+        ORDER BY p.id DESC LIMIT 1
     """, (id,))
     armacao = cursor.fetchone()
+    armacao = dict(armacao) if armacao else None
 
     conn.close()
 
-    return render_template("prontuario.html",
-                           paciente=paciente,
-                           receitas=receitas,
-                           medicao=medicao,
-                           armacao=armacao)
+    return render_template(
+        "prontuario.html",
+        paciente=paciente,
+        receitas=receitas,
+        medicao=medicao,
+        armacao=armacao
+    )
+
 
 
 @app.route("/receita")
@@ -177,6 +324,17 @@ def receita():
     conn.close()
 
     return render_template("receita.html", paciente=paciente)
+
+@app.route("/api/armacoes")
+def listar_armacoes():
+    import os
+
+    pasta = os.path.join("static", "armacoes")
+    arquivos = os.listdir(pasta)
+
+    imagens = [f for f in arquivos if f.endswith(".png")]
+
+    return {"armacoes": imagens}
 
 
 @app.route("/armacao")
@@ -225,6 +383,10 @@ def medicao():
 
 @app.route("/gerar_pdf/<int:paciente_id>")
 def gerar_pdf(paciente_id):
+    paciente_id_session = session.get("paciente_id")
+
+    print("URL ID:", paciente_id)
+    print("SESSION ID:", paciente_id_session)
 
     conn = get_db()
     cursor = conn.cursor()
@@ -253,7 +415,7 @@ def gerar_pdf(paciente_id):
     receita = cursor.fetchone()
 
     # =========================
-    # ARMAÇÃO (CORRETO)
+    # ARMAÇÃO
     # =========================
     cursor.execute("""
     SELECT a.modelo, a.marca, a.tamanho, a.material
@@ -305,7 +467,6 @@ def gerar_pdf(paciente_id):
         story.append(Paragraph(f"Idade: {paciente['idade']}", styles['Normal']))
         story.append(Paragraph(f"Telefone: {paciente['telefone']}", styles['Normal']))
         story.append(Paragraph(f"Data do exame: {paciente['data_exame']}", styles['Normal']))
-
         story.append(Spacer(1, 10))
 
         # FOTO
@@ -314,24 +475,31 @@ def gerar_pdf(paciente_id):
             story.append(Spacer(1, 20))
 
     # =========================
-    # RECEITA
+    # RECEITA (TABELA)
     # =========================
     if receita:
-        story.append(Paragraph("<b>RECEITA OFTALMOLÓGICA</b>", styles['Heading2']))
+        story.append(Paragraph("<b>RECEITA</b>", styles['Heading2']))
+        story.append(Spacer(1, 10))
+        print("RECEITA:", receita)
+        tabela_receita = Table([
+            ["Olho", "ESF", "CIL", "EIXO"],
+            ["OD", receita['od_esf'], receita['od_cil'], receita['od_eixo']],
+            ["OE", receita['oe_esf'], receita['oe_cil'], receita['oe_eixo']],
+        ])
+
+        tabela_receita.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 10),
+            ("GRID", (0, 0), (-1, -1), 1, colors.black),
+        ]))
+
+        story.append(tabela_receita)
         story.append(Spacer(1, 10))
 
-        story.append(Paragraph(
-            f"OD: ESF {receita['od_esf']} | CIL {receita['od_cil']} | EIXO {receita['od_eixo']}",
-            styles['Normal']
-        ))
-
-        story.append(Paragraph(
-            f"OE: ESF {receita['oe_esf']} | CIL {receita['oe_cil']} | EIXO {receita['oe_eixo']}",
-            styles['Normal']
-        ))
-
         story.append(Paragraph(f"Adição: {receita['adicao']}", styles['Normal']))
-
         story.append(Spacer(1, 20))
 
     # =========================
@@ -349,28 +517,31 @@ def gerar_pdf(paciente_id):
         story.append(Spacer(1, 20))
 
     # =========================
-    # MEDIÇÕES
+    # MEDIÇÕES (TABELA)
     # =========================
-    # =========================
-# MEDIÇÕES
-# =========================
     if medicao:
         story.append(Paragraph("<b>MEDIÇÕES BIOMÉTRICAS</b>", styles['Heading2']))
         story.append(Spacer(1, 10))
 
-        story.append(Paragraph(f"DP: {medicao['dp']:.1f} mm", styles['Normal']))
-        story.append(Paragraph(f"DNP Esquerdo: {medicao['dnp_e']:.1f} mm", styles['Normal']))
-        story.append(Paragraph(f"DNP Direito: {medicao['dnp_d']:.1f} mm", styles['Normal']))
-        story.append(Paragraph(f"Precisão (Score): {medicao['score']:.0f}%", styles['Normal']))
-        story.append(Paragraph(f"Data da medição: {medicao['data']}", styles['Normal']))
+        tabela_medicao = Table([
+            ["Parâmetro", "Valor"],
+            ["DP", f"{medicao['dp']:.1f} mm"],
+            ["DNP Esquerdo", f"{medicao['dnp_e']:.1f} mm"],
+            ["DNP Direito", f"{medicao['dnp_d']:.1f} mm"],
+            ["Precisão", f"{medicao['score']:.0f}%"],
+            ["Data", medicao['data']],
+        ])
 
+        tabela_medicao.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.darkblue),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 1, colors.black),
+        ]))
+
+        story.append(tabela_medicao)
         story.append(Spacer(1, 20))
-
-    # =========================
-    # RODAPÉ
-    # =========================
-    story.append(Spacer(1, 30))
-    story.append(Paragraph("Gerado por Vision AI", styles['Italic']))
 
     # =========================
     # BUILD
@@ -388,6 +559,9 @@ def gerar_pdf(paciente_id):
 def salvar_paciente():
     try:
         nome = request.form["nome"]
+        rg = request.form["rg"]
+        data_nascimento = request.form["data_nascimento"]
+        sexo = request.form["sexo"]
         idade = int(request.form["idade"])
         telefone = request.form["telefone"]
         data_exame = request.form["data_exame"]
@@ -396,9 +570,18 @@ def salvar_paciente():
         cursor = conn.cursor()
 
         cursor.execute("""
-        INSERT INTO pacientes (nome, idade, telefone, data_exame)
-        VALUES (?,?,?,?)
-        """, (nome, idade, telefone, data_exame))
+        INSERT INTO pacientes 
+        (nome, rg, data_nascimento, sexo, idade, telefone, data_exame)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            nome,
+            rg,
+            data_nascimento,
+            sexo,
+            idade,
+            telefone,
+            data_exame
+        ))
 
         paciente_id = cursor.lastrowid
 
@@ -406,8 +589,18 @@ def salvar_paciente():
         conn.close()
 
         session["paciente_id"] = paciente_id
+        registrar_paciente_no_csv({
+            "id": paciente_id,
+            "nome": nome,
+            "rg": rg,
+            "data_nascimento": data_nascimento,
+            "sexo": sexo,
+            "idade": idade,
+            "telefone": telefone,
+            "data_exame": data_exame,
+        })
 
-        return redirect("/receita")
+        return redirect(f"/medicao?paciente_id={paciente_id}")
 
     except Exception as e:
         return f"Erro ao salvar paciente: {str(e)}"
@@ -423,99 +616,336 @@ def salvar_receita():
     conn = get_db()
     cursor = conn.cursor()
 
+    # Cria a tabela se não existir
     cursor.execute("""
-    INSERT INTO receitas (
-        paciente_id,
-        od_esf, od_cil, od_eixo,
-        oe_esf, oe_cil, oe_eixo,
-        adicao
+    CREATE TABLE IF NOT EXISTS receitas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        paciente_id INTEGER NOT NULL,
+        od_esf REAL,
+        od_cil REAL,
+        od_eixo INTEGER,
+        oe_esf REAL,
+        oe_cil REAL,
+        oe_eixo INTEGER,
+        adicao REAL,
+        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-    VALUES (?,?,?,?,?,?,?,?)
-    """, (
-        paciente_id,
-        request.form["od_esf"],
-        request.form["od_cil"],
-        request.form["od_eixo"],
-        request.form["oe_esf"],
-        request.form["oe_cil"],
-        request.form["oe_eixo"],
-        request.form["adicao"]
-    ))
+    """)
+    conn.commit()
+
+    # Pega os valores do formulário de forma segura
+    od_esf = float(request.form.get("od_esf_longe", 0) or 0)
+    od_cil = float(request.form.get("od_cil_longe", 0) or 0)
+    od_eixo = int(request.form.get("od_eixo_longe", 0) or 0)
+
+    oe_esf = float(request.form.get("oe_esf_longe", 0) or 0)
+    oe_cil = float(request.form.get("oe_cil_longe", 0) or 0)
+    oe_eixo = int(request.form.get("oe_eixo_longe", 0) or 0)
+
+    adicao = float(request.form.get("adicao", 0) or 0)  # campo ADD
+
+    # Insere os dados na tabela
+    cursor.execute("""
+        INSERT INTO receitas (paciente_id, od_esf, od_cil, od_eixo, oe_esf, oe_cil, oe_eixo, adicao)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (paciente_id, od_esf, od_cil, od_eixo, oe_esf, oe_cil, oe_eixo, adicao))
 
     conn.commit()
     conn.close()
 
     return redirect(f"/medicao?paciente_id={paciente_id}")
 
+
 # -----------------------------
 # VIDEO STREAM
 # -----------------------------
 
-def gerar_frames():
-    camera = cv2.VideoCapture(0)
+def iniciar_camera():
+    global camera
 
-    try:
-        while True:
-            success, frame = camera.read()
+    if camera is None or not camera.isOpened():
+        print("📸 Ligando câmera...")
+        camera = cv2.VideoCapture(0)
 
-            if not success:
-                break
+def gen_frames():
+    global camera, camera_ativa
 
-            frame = processar_frame(frame)
+    iniciar_camera()
 
-            _, buffer = cv2.imencode(".jpg", frame)
-            frame_bytes = buffer.tobytes()
+    camera_ativa = True  # 🔥 sempre liga ao iniciar
 
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-    finally:
+    while True:
+
+        # 🔥 PARA AQUI
+        if not camera_ativa:
+            print("🛑 Parando stream da câmera...")
+            break
+
+        if camera is None or not camera.isOpened():
+            break
+
+        success, frame = camera.read()
+
+        if not success:
+            break
+
+        frame = processar_frame(frame)
+
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame_bytes = buffer.tobytes()
+
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+    # 🔥 FINALIZA CORRETAMENTE
+    if camera is not None:
         camera.release()
+        camera = None
+        print("📴 Câmera desligada (gen_frames)")
 
-
-@app.route("/video")
-def video():
-    return Response(gerar_frames(),
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@app.route("/dados")
+def dados():
+
+    paciente_id = request.args.get("paciente_id")
+
+    faixa = "indefinido"
+    dp_min, dp_max = 50, 80
+    idade = None
+    sexo = "outro"
+
+    # =========================
+    # 🔍 BUSCA PACIENTE
+    # =========================
+    if paciente_id:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT sexo, data_nascimento
+            FROM pacientes
+            WHERE id=?
+        """, (paciente_id,))
+
+        paciente = cursor.fetchone()
+        conn.close()
+
+        # 🔥 DEBUG AGORA NO LUGAR CERTO
+        print("===================================")
+        print("PACIENTE RAW:", paciente)
+
+        if paciente:
+            sexo = (paciente["sexo"] or "outro").lower().strip()
+
+            print("SEXO:", sexo)
+            print("DATA NASC:", paciente["data_nascimento"])
+
+            # =========================
+            # 🎂 CALCULA IDADE
+            # =========================
+            if paciente["data_nascimento"]:
+                try:
+                    from datetime import datetime
+
+                    nascimento = datetime.strptime(
+                        paciente["data_nascimento"], "%Y-%m-%d"
+                    )
+                    hoje = datetime.now()
+
+                    idade = hoje.year - nascimento.year
+                    if (hoje.month, hoje.day) < (nascimento.month, nascimento.day):
+                        idade -= 1
+
+                except Exception as e:
+                    print("ERRO IDADE:", e)
+                    idade = None
+
+            print("IDADE:", idade)
+
+    # =========================
+    # 🧠 PERFIL BIOMÉTRICO
+    # =========================
+    if idade is not None and idade < 18:
+        faixa = "crianca"
+        dp_min, dp_max = 40, 58
+
+    elif idade is not None:
+        faixa = "adulto"
+
+        if sexo == "masculino":
+            dp_min, dp_max = 62, 70
+        elif sexo == "feminino":
+            dp_min, dp_max = 58, 66
+        else:
+            dp_min, dp_max = 58, 70
+
+    print("PERFIL FINAL:", faixa, dp_min, dp_max)
+
+    # =========================
+    # 📊 VALIDAÇÃO EM TEMPO REAL
+    # =========================
+    dp_atual = dados_medicao.get("dp")
+
+    status_dp = "indefinido"
+
+    if dp_atual is not None:
+
+        if dp_atual < dp_min:
+            status_dp = "baixo"
+        elif dp_atual > dp_max:
+            status_dp = "alto"
+        else:
+            status_dp = "normal"
+
+    # =========================
+    # 📦 RESPOSTA FINAL
+    # =========================
+    return jsonify({
+        "dp": dados_medicao.get("dp", 0),
+        "dnp_e": dados_medicao.get("dnp_e", 0),
+        "dnp_d": dados_medicao.get("dnp_d", 0),
+        "score": dados_medicao.get("score", 0),
+        "status": dados_medicao.get("status", ""),
+        "instrucao": dados_medicao.get("instrucao", ""),
+
+        # 🔥 INTELIGÊNCIA
+        "faixa": faixa,
+        "idade": idade,
+        "sexo": sexo,
+        "dp_min": dp_min,
+        "dp_max": dp_max,
+        "status_dp": status_dp
+    })
+
+#"frames_validos": dados_medicao["frames_validos"]  # 🔥 AQUI
 # -----------------------------
 # API
 # -----------------------------
 
 @app.route("/salvar_medicao", methods=["POST"])
 def salvar_medicao():
+    import json
+    import statistics
+
     dados = request.get_json()
+
+    dp = float(dados["dp"])
+    dnp_e = float(dados["dnp_e"])
+    dnp_d = float(dados["dnp_d"])
+    score = float(dados["score"])
+
+    historico_dp = dados.get("historico", [])
+    caminho_foto = dados.get("foto", None)
+
+    # =========================
+    # VALIDAÇÃO INTELIGENTE
+    # =========================
+
+    erro = abs((dnp_e + dnp_d) - dp)
+
+    if erro > 2:
+        return {"status": "erro", "msg": "Medição inconsistente"}
+
+    if dp < 50 or dp > 80:
+        return {"status": "erro", "msg": "DP fora do padrão"}
+
+    if score < 70:
+        return {"status": "erro", "msg": "Baixa confiabilidade"}
+
+    # =========================
+    # AJUSTE FINAL
+    # =========================
+
+    dp = (dnp_e + dnp_d)
+
+    # =========================
+    # VALIDAÇÃO CLÍNICA
+    # =========================
+
+    if historico_dp:
+        media = round(statistics.mean(historico_dp), 2)
+        desvio = round(statistics.stdev(historico_dp), 2) if len(historico_dp) > 1 else 0
+        erro_max = round(max(historico_dp) - min(historico_dp), 2)
+    else:
+        media = dp
+        desvio = 0
+        erro_max = 0
+
+    status_validacao = "APROVADO" if desvio < 1.0 else "REPROVADO"
+
+    validacao = {
+        "media": media,
+        "desvio": desvio,
+        "erro_max": erro_max,
+        "status": status_validacao
+    }
+
+    # =========================
+    # SALVAR NO BANCO
+    # =========================
 
     conn = get_db()
     cursor = conn.cursor()
 
     cursor.execute("""
-    INSERT INTO medicoes (paciente_id, dp, dnp_e, dnp_d, score, data)
-    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO medicoes (
+        paciente_id, dp, dnp_e, dnp_d, score,
+        validacao_json, historico_json, foto_captura, data
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     """, (
         dados["paciente_id"],
-        dados["dp"],
-        dados["dnp_e"],
-        dados["dnp_d"],
-        dados["score"]
+        dp,
+        dnp_e,
+        dnp_d,
+        score,
+        json.dumps(validacao),
+        json.dumps(historico_dp),
+        caminho_foto
     ))
 
     conn.commit()
     conn.close()
 
-    return {"status": "ok"}
+    registrar_medicao_no_csv(dados["paciente_id"], {
+        "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "dp": dp,
+        "dnp_e": dnp_e,
+        "dnp_d": dnp_d,
+        "score": score,
+        "status_validacao": status_validacao,
+        "validacao_json": json.dumps(validacao, ensure_ascii=False),
+        "historico_json": json.dumps(historico_dp, ensure_ascii=False),
+        "foto_final": caminho_foto,
+    })
+
+    return {
+        "status": "ok",
+        "validacao": validacao,
+        "dp_final": dp
+    }
 
 
 @app.route("/salvar_foto", methods=["POST"])
 def salvar_foto():
-    import base64
-
     dados = request.json
+
     paciente_id = dados["paciente_id"]
     imagem = dados["imagem"]
 
+    dp = dados["dp"]
+    dnp_e = dados["dnp_e"]
+    dnp_d = dados["dnp_d"]
+    score = dados.get("score", 0)
+
     img_data = base64.b64decode(imagem.split(",")[1])
 
-    caminho = f"static/fotos/paciente_{paciente_id}.jpg"
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    caminho = f"static/fotos/paciente_{paciente_id}_{timestamp}.jpg"
 
     os.makedirs("static/fotos", exist_ok=True)
 
@@ -525,14 +955,164 @@ def salvar_foto():
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("UPDATE pacientes SET foto=? WHERE id=?",
-                   (caminho, paciente_id))
+    # 🔥 SALVA MEDIÇÃO COMPLETA
+    cursor.execute("""
+        INSERT INTO medicoes 
+        (paciente_id, dp, dnp_e, dnp_d, score, data, caminho_imagem)
+        VALUES (?, ?, ?, ?, ?, datetime('now'), ?)
+    """, (paciente_id, dp, dnp_e, dnp_d, score, caminho))
+
+    # 🔥 Atualiza só a última foto no paciente (opcional)
+    cursor.execute("""
+        UPDATE pacientes SET foto=? WHERE id=?
+    """, (caminho, paciente_id))
+
+    conn.commit()
+    conn.close()
+
+    registrar_medicao_no_csv(paciente_id, {
+        "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "dp": dp,
+        "dnp_e": dnp_e,
+        "dnp_d": dnp_d,
+        "score": score,
+        "fotos_capturadas": caminho,
+        "foto_final": caminho,
+    })
+
+    return {"status": "ok"}
+
+@app.route("/reset_medicoes/<int:paciente_id>", methods=["POST"])
+def reset_medicoes(paciente_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM medicoes WHERE paciente_id=?", (paciente_id,))
 
     conn.commit()
     conn.close()
 
     return {"status": "ok"}
 
+
+@app.route("/salvar_lote", methods=["POST"])
+def salvar_lote():
+
+    dados = request.json
+    paciente_id = dados["paciente_id"]
+    medicoes = dados["medicoes"]
+
+    if not medicoes:
+        return {"status": "erro", "msg": "Nenhuma medicao recebida"}
+
+    import numpy as np
+    import base64, os, json
+    from datetime import datetime
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    dps = []
+    capturas_csv = []
+    imagens_salvas = []
+
+    for m in medicoes:
+
+        dp = m["dp"]
+        dnp_e = m["dnp_e"]
+        dnp_d = m["dnp_d"]
+        score = m["score"]
+        imagem = m["imagem"]
+
+        # salvar imagem
+        img_data = base64.b64decode(imagem.split(",")[1])
+
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        caminho = f"static/fotos/paciente_{paciente_id}_{timestamp}.jpg"
+
+        os.makedirs("static/fotos", exist_ok=True)
+
+        with open(caminho, "wb") as f:
+            f.write(img_data)
+
+        imagens_salvas.append(caminho)
+        dps.append(dp)
+        capturas_csv.append({
+            "dp": dp,
+            "dnp_e": dnp_e,
+            "dnp_d": dnp_d,
+            "score": score,
+            "foto": caminho,
+        })
+
+    # =========================
+    # 📊 VALIDAÇÃO
+    # =========================
+    media = float(np.mean(dps))
+    desvio = float(np.std(dps))
+    erro_max = float(max([abs(x - media) for x in dps]))
+
+    status = "APROVADO" if erro_max <= 2 else "REPROVADO"
+
+    validacao = {
+        "media": round(media, 2),
+        "desvio": round(desvio, 3),
+        "erro_max": round(erro_max, 2),
+        "status": status
+    }
+
+    # =========================
+    # 💾 SALVAR (UMA LINHA FINAL)
+    # =========================
+    caminho_final = imagens_salvas[-1]  # última imagem
+
+    cursor.execute("""
+        INSERT INTO medicoes 
+        (paciente_id, dp, dnp_e, dnp_d, score, caminho_imagem, validacao_json, historico_json, data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    """, (
+        paciente_id,
+        round(media, 2),  # 🔥 usa média
+        dnp_e,
+        dnp_d,
+        score,
+        caminho_final,
+        json.dumps(validacao),
+        json.dumps(dps)
+    ))
+
+    # =========================
+    # 🖼️ ATUALIZA FOTO DO PACIENTE
+    # =========================
+    cursor.execute("""
+        UPDATE pacientes SET foto=? WHERE id=?
+    """, (caminho_final, paciente_id))
+
+    conn.commit()
+    conn.close()
+
+    registrar_medicao_no_csv(paciente_id, {
+        "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "dp": round(media, 2),
+        "dnp_e": dnp_e,
+        "dnp_d": dnp_d,
+        "score": score,
+        "status_validacao": status,
+        "validacao_json": json.dumps(validacao, ensure_ascii=False),
+        "historico_json": json.dumps(dps, ensure_ascii=False),
+        "capturas_json": json.dumps(capturas_csv, ensure_ascii=False),
+        "fotos_capturadas": "|".join(imagens_salvas),
+        "foto_final": caminho_final,
+    })
+
+    return {
+        "status": "ok",
+        "dp_medio": round(media, 2),
+        "desvio": round(desvio, 2),
+        "erro_max": round(erro_max, 2),
+        "status_validacao": status
+    }
 
 @app.route("/process-frame", methods=["POST"])
 def process_frame():
@@ -550,6 +1130,22 @@ def process_frame():
     img_base64 = base64.b64encode(buffer).decode("utf-8")
 
     return jsonify({"image": img_base64})
+
+
+camera_ativa = True
+
+@app.route("/stop_camera")
+def stop_camera():
+    global camera_ativa, camera
+
+    camera_ativa = False
+
+    if camera is not None and camera.isOpened():
+        camera.release()
+        camera = None
+        print("📴 Câmera desligada via rota")
+
+    return {"status": "ok"}
 
 # -----------------------------
 # START

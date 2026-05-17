@@ -1,46 +1,129 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>VisionAI Ótica</title>
 
-<link rel="stylesheet" href="{{ url_for('static', filename='visionai.css') }}">
+<!-- Ícone da aba -->
+<link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='img/icon.jpeg') }}">
 
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Segoe UI', sans-serif;
+
+  /* Fundo responsivo */
+  background: url("{{ url_for('static', filename='img/fundo.png') }}") no-repeat center center;
+  background-size: cover;
+}
+
+/* Ícone flutuante */
+.float-icon {
+  position: fixed;
+  bottom: 5vh;
+  right: 5vw;
+  width: 120px;
+  height: 120px;
+  cursor: pointer;
+  animation: pulse 1.5s infinite;
+  z-index: 1000;
+}
+
+/* Imagem do ícone */
+.float-icon img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  transition: transform 0.3s;
+}
+
+.float-icon:hover img {
+  transform: scale(1.15);
+}
+
+/* Texto */
+.float-text {
+  position: fixed;
+  bottom: 22vh;
+  right: 5vw;
+  font-size: 22px;
+  font-weight: 600;
+  color: rgb(57, 6, 179);
+  text-shadow: 0 0 10px rgba(0,0,0,0.7);
+  opacity: 0;
+  animation: fadeInOut 2s infinite;
+  pointer-events: none;
+}
+
+/* Animações */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* 📱 MOBILE (até 768px) */
+@media (max-width: 768px) {
+  .float-icon {
+    width: 80px;
+    height: 80px;
+    bottom: 4vh;
+    right: 4vw;
+  }
+
+  .float-text {
+    font-size: 16px;
+    bottom: 18vh;
+    right: 4vw;
+  }
+}
+
+/* 📱 SMALL MOBILE (até 480px) */
+@media (max-width: 480px) {
+  .float-icon {
+    width: 65px;
+    height: 65px;
+  }
+
+  .float-text {
+    font-size: 14px;
+  }
+}
+
+/* 💻 TABLET (768px a 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .float-icon {
+    width: 100px;
+    height: 100px;
+  }
+
+  .float-text {
+    font-size: 18px;
+  }
+}
+</style>
 </head>
 
 <body>
 
-<header>
+<!-- Texto de boas-vindas piscando -->
+<div class="float-text">Bem Vindo!</div>
 
-<div class="logo">
-VisionAI
-</div>
-
-<nav>
-<a href="#">Tecnologia</a>
-<a href="#">Ótica</a>
-<a href="#">IA</a>
-</nav>
-
-</header>
-
-<section class="hero">
-
-<h1>VisionAI Ótica</h1>
-
-<p>
-Provador virtual inteligente com visão computacional
-</p>
-
-<a href="/paciente">
-<button class="btn">
-Iniciar Atendimento
-</button>
+<!-- Ícone flutuante -->
+<a href="/paciente" class="float-icon">
+  <img src="{{ url_for('static', filename='img/icon.jpeg') }}" alt="Ícone">
 </a>
 
-</section>
-
 </body>
-
 </html>

@@ -1,198 +1,240 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionAI • Escolha sua Armação</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='visionai.css') }}">
+    
+    <style>
+        /* CONFIGURAÇÕES GERAIS - TEMA CLARO PAPEL (UNIFICADO) */
+        :root {
+            /* Cores extraídas diretamente do logotipo image_10.png e image_13.png */
+            --bg-paper: #f4f1ea;        /* Cor base do papel (creme muito claro) */
+            --bg-paper-texture: #ebe8df; /* Cor para a textura sutil */
+            
+            /* Cores do logo ajustadas para fundo claro */
+            --logo-blue: #00acc1;       /* Ciano escurecido para contraste */
+            --logo-green: #1b5e20;      /* Verde escurecido */
+            
+            /* Cores de texto e elementos escuros */
+            --text-main: #212121;       /* Cinza quase preto para texto principal */
+            --text-sub: #616161;        /* Cinza médio para labels */
+            --card-bg: #ffffff;         /* Branco puro para os cards */
+            --border-light: rgba(0, 0, 0, 0.05); /* Borda muito sutil */
+            
+            --transition: 0.3s ease;
+        }
 
-<meta charset="UTF-8">
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            
+            /* --- NOVO FUNDO TEXTURA DE PAPEL CLARO JÁ APLICADO (Mantido) --- */
+            background-color: var(--bg-paper);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ebe8df' fill-opacity='0.4' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
+            background-attachment: fixed; /* Mantém a textura fixa no scroll */
+            /* ----------------------------------------------------------- */
+        }
 
-<title>VisionAI • Escolha sua Armação</title>
+        /* HEADER & NAVEGAÇÃO - CONSISTENTE COM AS ANTERIORES */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 80px;
+            background: rgba(255, 255, 255, 0.8); /* Fundo branco translúcido */
+            border-bottom: 1px solid var(--border-light);
+            backdrop-filter: blur(5px);
+            position: relative;
+            z-index: 10;
+        }
 
-<link rel="stylesheet" href="{{ url_for('static', filename='visionai.css') }}">
+        .logo {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            color: var(--logo-blue); /* Cor principal do logo */
+            text-shadow: none;
+        }
 
-<style>
+        /* TÍTULO - AJUSTADO PARA TEMA CLARO E IDENTIDADE --- */
+        .title {
+            text-align: center;
+            margin-top: 40px;
+            padding: 0 20px;
+        }
 
-/* fundo futurista */
+        .title h2 {
+            font-size: 36px;
+            font-weight: 800;
+            margin: 0;
+            color: var(--logo-green); /* Destaque verde principal */
+            text-shadow: none;
+        }
 
-body{
-margin:0;
-font-family:Segoe UI, sans-serif;
-background:radial-gradient(circle at top,#0f172a,#020617);
-color:white;
-min-height:100vh;
-}
+        /* MENSAGEM DO PACIENTE */
+        .paciente-msg {
+            margin-top: 15px;
+            font-size: 20px;
+            color: var(--text-sub);
+        }
 
-/* header */
+        .paciente-msg b {
+            color: var(--logo-blue); /* Destaque azul para o nome */
+        }
 
-header{
-display:flex;
-justify-content:space-between;
-align-items:center;
-padding:20px 60px;
-}
 
-.logo{
-font-size:26px;
-font-weight:700;
-letter-spacing:1px;
-}
+        /* GRID DE ARMAÇÕES - AJUSTADO PARA TEMA CLARO */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            padding: 50px 80px;
+            width: 100%;
+            max-width: 1200px;
+            margin: auto;
+            box-sizing: border-box;
+        }
 
-/* titulo */
+        /* CARDS DE ARMAÇÃO - AJUSTADO PARA TEMA CLARO E FLUTUAR --- */
+        .card {
+            position: relative;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-light);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.03); /* Sombra suave para flutuar */
+            transition: var(--transition);
+            cursor: pointer;
+            overflow: hidden;
+        }
 
-.title{
-text-align:center;
-margin-top:30px;
-}
+        /* Efeito de hover e profundidade 3D suave (UNIFICADO COM A ANTERIOR) */
+        .card:hover {
+            transform: translateY(-8px) rotateX(2deg) rotateY(1deg);
+            border-color: rgba(0, 172, 193, 0.2);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+        }
 
-.title h2{
-font-size:36px;
-background:linear-gradient(90deg,#38bdf8,#22c55e);
--webkit-background-clip:text;
-background-clip:text;
-color:transparent;
-}
+        /* IMAGEM DA ARMAÇÃO */
+        .card img {
+            width: 100%;
+            max-width: 200px;
+            height: auto;
+            margin-bottom: 20px;
+            transition: var(--transition);
+        }
 
-/* mensagem paciente */
+        .card:hover img {
+            transform: scale(1.05);
+        }
 
-.paciente-msg{
-margin-top:15px;
-font-size:20px;
-color:#94a3b8;
-}
+        /* TEXTO DO CARD */
+        .card h3 {
+            margin: 10px 0 5px;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
 
-.paciente-msg b{
-color:#22c55e;
-}
+        .card p {
+            margin: 5px 0;
+            font-size: 15px;
+            color: var(--text-sub);
+        }
 
-/* grid */
+        /* PREÇO - AJUSTADO PARA TEMA CLARO E IDENTIDADE --- */
+        .preco {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--logo-blue); /* Destaque azul no preço */
+            margin-top: 15px;
+            text-shadow: none;
+        }
 
-.grid{
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-gap:40px;
-padding:60px 120px;
-}
+        /* BRILHO ANIMADO HOLOGRÁFICO (UNIFICADO COM A ANTERIOR) */
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(120deg, transparent, rgba(0, 172, 193, 0.08), transparent); /* Usando var(--logo-blue) translúcido */
+            transition: 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+            z-index: 1;
+        }
 
-/* card */
+        .card:hover::before {
+            left: 100%;
+        }
 
-.card{
-position:relative;
-border-radius:20px;
-padding:25px;
-text-align:center;
-background:rgba(255,255,255,0.04);
-backdrop-filter:blur(10px);
-border:1px solid rgba(255,255,255,0.08);
-transition:0.4s;
-cursor:pointer;
-}
-
-.card:hover{
-transform:translateY(-12px) scale(1.05);
-box-shadow:0 0 30px rgba(56,189,248,0.6);
-}
-
-/* imagem */
-
-.card img{
-width:180px;
-margin-bottom:10px;
-transition:0.3s;
-}
-
-.card:hover img{
-transform:scale(1.1);
-}
-
-/* texto */
-
-.card h3{
-margin:10px 0 5px;
-font-size:20px;
-}
-
-.card p{
-margin:4px 0;
-color:#cbd5f5;
-}
-
-/* preço */
-
-.preco{
-font-size:20px;
-font-weight:700;
-color:#22c55e;
-margin-top:10px;
-}
-
-/* brilho animado */
-
-.card::before{
-content:"";
-position:absolute;
-top:0;
-left:-100%;
-width:100%;
-height:100%;
-background:linear-gradient(120deg,transparent,rgba(255,255,255,0.15),transparent);
-transition:0.6s;
-}
-
-.card:hover::before{
-left:100%;
-}
-
-</style>
-
+    </style>
 </head>
 
 <body>
 
-<header>
+    <header>
+        <div class="logo">VisionAI</div>
+        </header>
 
-<div class="logo">
-VisionAI
-</div>
+    <main>
+        <div class="title">
+            <h2>Escolha sua Armação</h2>
 
-</header>
+            {% if paciente %}
+            <p class="paciente-msg">
+                Olá 🤓 <b>{{ paciente[0] }}</b>, inicie o atendimento.
+            </p>
+            {% endif %}
+        </div>
 
-<div class="title">
+        <div class="grid" id="grid-armacoes"></div>
+    </main>
 
-<h2>Escolha sua Armação</h2>
+    <script>
+        const grid = document.getElementById("grid-armacoes");
 
-{% if paciente %}
-<p class="paciente-msg">
-Olá 🤓 <b>{{ paciente[0] }}</b>, vamos escolher sua armação
-</p>
-{% endif %}
+        fetch("/api/armacoes")
+            .then(res => res.json())
+            .then(data => {
 
-</div>
+                data.armacoes.forEach(nome => {
 
-<div class="grid">
+                    const modelo = nome
+                        .replace(".png","")
+                        .replaceAll("_"," ")
+                        .toUpperCase();
 
-{% for a in armacoes %}
+                    const card = document.createElement("div");
+                    card.classList.add("card");
 
-<a href="/escolher_armacao/{{a[0]}}">
+                    card.innerHTML = `
+                        <img src="/static/armacoes/${nome}" alt="Armação ${modelo}">
+                        <h3>${modelo}</h3>
+                        <p>Material: Premium</p>
+                        <p>Tamanho: Padrão</p>
+                        <p class="preco">R$ 299</p>
+                    `;
 
-<div class="card">
+                    card.onclick = () => {
+                        window.location.href = "/escolher_armacao/" + nome;
+                    };
 
-<img src="/static/armacoes/{{a[6]}}">
+                    grid.appendChild(card);
+                });
 
-<h3>{{a[1]}} {{a[2]}}</h3>
-
-<p>Material: {{a[3]}}</p>
-
-<p>Tamanho: {{a[4]}}</p>
-
-<p class="preco">R$ {{a[5]}}</p>
-
-</div>
-
-</a>
-
-{% endfor %}
-
-</div>
+            })
+            .catch(err => {
+                console.error("Erro ao carregar armações:", err);
+            });
+    </script>
 
 </body>
-
 </html>

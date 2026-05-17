@@ -2,321 +2,514 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>VisionAI • Medição Inteligente</title>
 
 <style>
+:root {
+    --bg-paper: #f4f1ea;
+    --logo-blue: #00acc1;
+    --text-main: #212121;
+    --card-bg: #ffffff;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
 body{
-  margin:0;
-  font-family:Segoe UI;
-  background:radial-gradient(circle at top,#f7f8fa,#f1f2f5);
-  text-align:center;
+    font-family:'Segoe UI', sans-serif;
+    background:var(--bg-paper);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
 }
 
+/* CONTAINER */
+main{
+    width:100%;
+    max-width:520px;
+    text-align:center;
+}
+
+/* VIDEO CONTAINER (FIX CRÍTICO) */
 .video-container{
-  position:relative;
-  display:inline-block;
-  margin-top:20px;
+    position:relative;
+    width:100%;
+    aspect-ratio: 4 / 3; /* 🔥 mantém proporção */
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,0.1);
 }
 
-video{
-  border-radius:15px;
-  width:420px;
-  height:320px;
-  border:3px solid #22c55e;
+.video-container img{
+    object-position: center;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    object-fit: cover; /* 🔥 CORRETO */
 }
 
-canvas{
-  position:absolute;
-  top:0;
-  left:0;
+/* OVERLAY */
+.overlay{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
 }
 
-#foto{
-  margin-top:15px;
-  display:none;
-  border-radius:10px;
-  border:3px solid #22c55e;
-  width:200px;
+/* CÍRCULO CENTRAL CORRETO */
+.face-guide{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+    width:75%;
+    height:75%;
+    border:2px dashed rgba(0,255,0,0.6);
+    border-radius:50%;
 }
 
-.status{
-  font-size:18px;
-  margin-top:10px;
-  font-weight:bold;
+/* LINHA CENTRAL */
+.center-line{
+    position:absolute;
+    left:50%;
+    top:0;
+    width:2px;
+    height:100%;
+    background:rgba(0,255,255,0.4);
 }
 
+.instrucao-texto {
+    font-size: 22px;
+    font-weight: 600;
+    color: #00ffcc;
+    text-align: center;
+    margin-top: 10px;
+    letter-spacing: 0.5px;
+}
+
+/* TEXTO */
+.instrucao{
+    position:absolute;
+    bottom:40px;
+    width:100%;
+    text-align:center;
+    color:white;
+    font-size:18px;
+    font-weight:bold;
+    text-shadow:0 0 10px black;
+}
+
+/* PROGRESSO */
+.progress{
+    position:absolute;
+    bottom:0;
+    width:100%;
+    height:6px;
+    background:rgba(255,255,255,0.2);
+}
+
+.progress-bar{
+    width:0%;
+    height:100%;
+    background:lime;
+    transition:0.2s;
+}
+
+/* STATUS estilo iPhone */
+.status-pill{
+    margin-top:15px;
+    display:inline-block;
+    padding:8px 16px;
+    border-radius:20px;
+    background:#000;
+    color:#fff;
+    font-size:13px;
+    opacity:0.8;
+}
+
+/* HUD */
+.hud{
+    margin-top:15px;
+    display:flex;
+    gap:10px;
+}
+
+/* CARDS */
+.card{
+    flex:1;
+    background:white;
+    border-radius:18px;
+    padding:12px;
+    text-align:center;
+    box-shadow:0 5px 15px rgba(0,0,0,0.08);
+}
+
+.card span{
+    font-size:11px;
+    color:#666;
+}
+
+.card b{
+    display:block;
+    font-size:20px;
+    margin-top:4px;
+}
+
+.card small{
+    font-size:11px;
+    color:#888;
+}
+
+/* SCORE DINÂMICO */
+.score-card b{
+    color:rgb(8, 156, 16);
+}
+
+/* INFO */
 .info{
-  margin-top:10px;
-  font-size:18px;
+    margin-top:15px;
+    padding:12px;
+    background:var(--card-bg);
+    border-radius:20px;
+    font-size:14px;
 }
 
-button{
-  margin:20px;
-  padding:12px 30px;
-  border:none;
-  border-radius:10px;
-  background:#22c55e;
-  color:white;
-  font-size:16px;
-  cursor:pointer;
-}
-
-button:hover{
-  background:#16a34a;
+/* BOTÃO */
+.btn-finalizar{
+    margin-top:20px;
+    padding:16px;
+    width:100%;
+    border:none;
+    border-radius:30px;
+    background:linear-gradient(135deg,#00acc1,#1976d2);
+    color:white;
+    font-weight:bold;
+    font-size:15px;
+    cursor:pointer;
 }
 </style>
 </head>
 
 <body data-paciente='{{ paciente_id | tojson }}'>
 
-<h2>👁️ Medição Inteligente</h2>
+<main>
 
 {% if paciente %}
 <h3>Olá 🤓 <b>{{ paciente["nome"] }}</b></h3>
 {% endif %}
 
+<!-- VIDEO -->
 <div class="video-container">
-  <video id="video" autoplay playsinline></video>
-  <canvas id="overlay" width="420" height="320"></canvas>
+
+    <img id="video" src="/video_feed">
+
+    <div class="overlay">
+        <div class="face-guide"></div>
+        <div class="center-line"></div>
+
+        <div id="instrucao">Posicione seu rosto</div>
+
+        <div class="progress">
+            <div id="progress-bar"></div>
+        </div>
+    </div>
+
 </div>
 
-<img id="foto"/>
-
-<div id="status" class="status">Posicione seu rosto</div>
-
-<div class="info">
-DP: <span id="dp">0</span> mm |
-DNP E: <span id="dnp_e">0</span> |
-DNP D: <span id="dnp_d">0</span> |
-Score: <span id="score">0</span>%
+<!-- STATUS -->
+<div id="status" class="status-pill">
+    Iniciando câmera...
 </div>
 
-<button onclick="finalizar()">Finalizar</button>
+<!-- HUD MODERNO -->
+<div class="hud">
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <div class="card">
+        <span>DP</span>
+        <b id="dp">0</b>
+        <small>mm</small>
+    </div>
+
+    <div class="card">
+        <span>DNP E</span>
+        <b id="dnp_e">0</b>
+    </div>
+
+    <div class="card">
+        <span>DNP D</span>
+        <b id="dnp_d">0</b>
+    </div>
+
+    <div class="card score-card">
+        <span>Score</span>
+        <b id="score">0</b>
+        <small>%</small>
+    </div>
+
+</div>
+
+<!-- BOTÃO -->
+<button class="btn-finalizar" onclick="finalizar()">
+    Finalizar medição
+</button>
+
+</main>
 
 <script>
 
-// ==============================
+// =========================
+// CONFIG
+// =========================
 let paciente_id = JSON.parse(document.body.dataset.paciente);
-
-const video = document.getElementById("video");
-const canvas = document.getElementById("overlay");
-const ctx = canvas.getContext("2d");
 
 const dpEl = document.getElementById("dp");
 const dnp_eEl = document.getElementById("dnp_e");
 const dnp_dEl = document.getElementById("dnp_d");
 const scoreEl = document.getElementById("score");
 const statusEl = document.getElementById("status");
+const instrucaoEl = document.getElementById("instrucao");
+const progressBar = document.getElementById("progress-bar");
+const faceGuide = document.querySelector(".face-guide");
 
-let dp_history = [];
-let stableFrames = 0;
+// CONTROLE
+let capturando = false;
+let tempoInicio = null;
+let finalizado = false;
 
-let FOTO_TIRADA = false;
-let PROCESSANDO = true;
+// =========================
+// =========================
+// LOOP IA (CORRIGIDO 🔥)
+// =========================
+let loopIA = setInterval(async () => {
+    if(finalizado) return;
 
-// ==============================
-navigator.mediaDevices.getUserMedia({ video:true })
-.then(stream => video.srcObject = stream)
-.catch(()=> statusEl.innerText = "Erro ao acessar câmera");
+    try{
+        const resp = await fetch(`/dados?paciente_id=${paciente_id}`);
+        const data = await resp.json();
 
-// ==============================
-const faceMesh = new FaceMesh({
-  locateFile: (file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-});
+        dpEl.innerText = data.dp.toFixed(1);
+        dnp_eEl.innerText = data.dnp_e.toFixed(1);
+        dnp_dEl.innerText = data.dnp_d.toFixed(1);
+        scoreEl.innerText = data.score.toFixed(0);
 
-faceMesh.setOptions({
-  maxNumFaces:1,
-  refineLandmarks:true
-});
+        const score = data.score;
 
-const L = 468;
-const R = 473;
+        // 🔥 NOVO STATUS INTELIGENTE
+        statusEl.innerText = `
+        👤 ${data.sexo} | ${data.idade ?? "-"} anos
+        📊 Faixa: ${data.faixa}
+        📏 DP: ${data.dp.toFixed(1)} mm (ideal ${data.dp_min}-${data.dp_max})
+        🎯 Score: ${score}%
+        📸 Capturas: ${medicoes.length}/6
+        `;
 
-let smooth = { lx:null, rx:null, ly:null, ry:null };
+        // =========================
+        // 🎨 COR DINÂMICA AQUI 👇
+        // =========================
+        if(data.status_dp === "normal"){
+            statusEl.style.background = "#0f5132"; // verde
+        }
+        else if(data.status_dp === "baixo"){
+            statusEl.style.background = "#664d03"; // amarelo
+        }
+        else if(data.status_dp === "alto"){
+            statusEl.style.background = "#842029"; // vermelho
+        }
+        else{
+            statusEl.style.background = "#000";
+        }
 
-// ==============================
-faceMesh.onResults(results=>{
+        // =========================
+        // FEEDBACK VISUAL
+        // =========================
+        if(score > 95){
+            faceGuide.style.borderColor = "lime";
+            instrucaoEl.innerText = "✅ Perfeito! Não se mova...";
+        } 
+        else if(score > 75){
+            faceGuide.style.borderColor = "yellow";
+            instrucaoEl.innerText = "⚠️ Ajuste levemente...";
+        } 
+        else{
+            faceGuide.style.borderColor = "red";
+            instrucaoEl.innerText = "❌ Posicione melhor o rosto";
+        }
 
-  if(!PROCESSANDO) return;
+        // =========================
+        // AUTO CAPTURA INTELIGENTE
+        // =========================
+        if(score >= 85){
 
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+            // inicia contagem
+            if(!capturando){
+                capturando = true;
+                tempoInicio = Date.now();
+            }
 
-  // ❌ SEM ROSTO
-  if(!results.multiFaceLandmarks.length){
-    statusEl.innerText = "Nenhum rosto detectado";
-    stableFrames = 0;
-    return;
-  }
+            let tempo = (Date.now() - tempoInicio) / 1000;
 
-  const lm = results.multiFaceLandmarks[0];
+            instrucaoEl.innerText = `📸 Capturando em ${(2 - tempo).toFixed(1)}s`;
+            progressBar.style.width = Math.min((tempo / 2) * 100, 100) + "%";
 
-  let lx = lm[L].x * canvas.width;
-  let rx = lm[R].x * canvas.width;
-  let ly = lm[L].y * canvas.height;
-  let ry = lm[R].y * canvas.height;
+            // se perder qualidade → cancela
+            if(score < 95){
+                capturando = false;
+                tempoInicio = null;
+                progressBar.style.width = "0%";
+                return;
+            }
 
-  // ✅ CORREÇÃO SUAVIZAÇÃO
-  if(smooth.lx === null){
-    smooth = { lx, rx, ly, ry };
-  }
+            // quando completar tempo → captura
+            if(tempo >= 2){
 
-  smooth.lx = smooth.lx*0.7 + lx*0.3;
-  smooth.rx = smooth.rx*0.7 + rx*0.3;
-  smooth.ly = smooth.ly*0.7 + ly*0.3;
-  smooth.ry = smooth.ry*0.7 + ry*0.3;
+                salvarCaptura(); // 🔥 SALVA LOCAL
 
-  let dist = Math.hypot(
-    smooth.rx - smooth.lx,
-    smooth.ry - smooth.ly
-  );
+                capturando = false;
+                tempoInicio = null;
+                progressBar.style.width = "0%";
 
-  // ==============================
-  // ESCALA REAL
-  let faceLeft = lm[234].x * canvas.width;
-  let faceRight = lm[454].x * canvas.width;
+                // 🔥 SE JÁ TEM 6 → FINALIZA
+                if(medicoes.length >= 6){
+                    finalizar();
+                }
+            }
 
-  let faceWidth = Math.abs(faceRight - faceLeft);
-  let escala = 140 / Math.max(faceWidth,1);
+        } else {
+            capturando = false;
+            tempoInicio = null;
+            progressBar.style.width = "0%";
+        }
 
-  // ==============================
-  // MEDIDAS
-  let dp = dist * escala;
+    }catch(e){
+        statusEl.innerText = `📸 ${medicoes.length}/6 capturas concluídas`;
+    }
 
-  let cx = (smooth.lx + smooth.rx)/2;
-  let cy = (smooth.ly + smooth.ry)/2;
+}, 150);
 
-  let nx = lm[1].x * canvas.width;
-  let ny = lm[1].y * canvas.height;
 
-  cy += (ny - cy)*0.2;
+// =========================
+// CONFIG NOVA
+// =========================
+let medicoes = [];
+const TOTAL_CAPTURAS = 6;
 
-  let dnp_e = Math.abs(smooth.lx - cx) * escala;
-  let dnp_d = Math.abs(smooth.rx - cx) * escala;
 
-  // ==============================
-  // HISTÓRICO + SUAVIZAÇÃO FINAL
-  dp_history.push(dp);
-  if(dp_history.length > 10) dp_history.shift();
-
-  let dp_suave = dp_history.reduce((a,b)=>a+b,0) / dp_history.length;
-  dp = dp_suave;
-
-  let variacao = Math.max(...dp_history) - Math.min(...dp_history);
-
-  // ==============================
-  // SCORE
-  let dp_target = 64;
-  let erro = Math.abs(dp - dp_target);
-
-  let score = 100 - (erro * 2);
-  score = Math.max(0, Math.min(100, score));
-
-  // ==============================
-  // STATUS INTELIGENTE
-  let status = "";
-
-  if(dp < 55) status = "Aproxime o rosto";
-  else if(dp > 75) status = "Afaste o rosto";
-  else if(score < 70) status = "Centralize melhor";
-  else if(score < 90) status = "Quase lá...";
-  else status = "Perfeito! Não se mova";
-
-  // ==============================
-  // AUTO CAPTURA COM CONTAGEM
-  if(score > 90 && variacao < 2){
-    stableFrames++;
-    status = "Capturando... " + stableFrames;
-  } else {
-    stableFrames = 0;
-  }
-
-  if(stableFrames >= 15 && !FOTO_TIRADA){
-    FOTO_TIRADA = true;
-    PROCESSANDO = false;
-    capturarFoto();
-  }
-
-  statusEl.innerText = status;
-
-  // ==============================
-  // OVERLAY VISUAL
-  ctx.strokeStyle = score > 90 ? "green" : "red";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(50,50,320,220);
-
-  // ==============================
-  // UI
-  dpEl.innerText = dp.toFixed(1);
-  dnp_eEl.innerText = dnp_e.toFixed(1);
-  dnp_dEl.innerText = dnp_d.toFixed(1);
-  scoreEl.innerText = score.toFixed(0);
-
-});
-
-// ==============================
-new Camera(video,{
-  onFrame: async ()=> await faceMesh.send({image:video}),
-  width:420,
-  height:320
-}).start();
-
-// ==============================
-// 📸 CAPTURA FOTO
+// =========================
+// CAPTURA FOTO (AGORA RETORNA)
+// =========================
 function capturarFoto(){
 
-  let tempCanvas = document.createElement("canvas");
-  tempCanvas.width = video.videoWidth;
-  tempCanvas.height = video.videoHeight;
+    const img = document.getElementById("video");
 
-  let tctx = tempCanvas.getContext("2d");
-  tctx.drawImage(video,0,0);
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
 
-  let img = tempCanvas.toDataURL("image/jpeg");
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
 
-  let foto = document.getElementById("foto");
-  foto.src = img;
-  foto.style.display = "block";
-
-  statusEl.innerText = "Foto capturada ✅";
-
-  fetch("/salvar_foto",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      paciente_id,
-      imagem: img
-    })
-  });
-
+    return canvas.toDataURL("image/jpeg");
 }
 
-// ==============================
+
+// =========================
+// SALVAR CAPTURA LOCAL
+// =========================
+function salvarCaptura(){
+
+    const foto = capturarFoto();
+
+    medicoes.push({
+        dp: parseFloat(dpEl.innerText),
+        dnp_e: parseFloat(dnp_eEl.innerText),
+        dnp_d: parseFloat(dnp_dEl.innerText),
+        score: parseFloat(scoreEl.innerText),
+        imagem: foto
+    });
+
+    statusEl.innerText = `📸 Captura ${medicoes.length}/${TOTAL_CAPTURAS}`;
+}
+
+
+// =========================
+// FINALIZAR (ENVIA LOTE)
+// =========================
 function finalizar(){
 
-  if(!FOTO_TIRADA){
-    alert("Aguarde a captura da foto!");
-    return;
-  }
+    if(finalizado) return;
+    finalizado = true;
 
-  fetch("/salvar_medicao",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      paciente_id,
-      dp: parseFloat(dpEl.innerText),
-      dnp_e: parseFloat(dnp_eEl.innerText),
-      dnp_d: parseFloat(dnp_dEl.innerText),
-      score: parseFloat(scoreEl.innerText)
+    statusEl.innerText = "📊 Validando medições...";
+
+    fetch("/salvar_lote", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            paciente_id: paciente_id,
+            medicoes: medicoes
+        })
     })
-  })
-  .then(()=> window.location.href="/prontuario/"+paciente_id);
+    .then(res => res.json())
+    .then(async (resp) => {
 
+        if(resp.status !== "ok"){
+            finalizado = false;
+            statusEl.innerText = "❌ Erro ao salvar medições";
+            return;
+        }
+
+        // =========================
+        // 🔥 RESULTADO NA TELA
+        // =========================
+        statusEl.innerText = `
+DP médio: ${resp.dp_medio}mm  
+Erro: ${resp.erro_max}mm  
+${resp.status_validacao === "APROVADO" ? "✅ APROVADO" : "❌ REPROVADO"}
+        `;
+
+        // =========================
+        // 🔥 PARA LOOP DA IA
+        // =========================
+        clearInterval(loopIA);
+
+        try {
+            // =========================
+            // 🔥 DESLIGA BACKEND
+            // =========================
+            await fetch("/stop_camera");
+
+        } catch(e){
+            console.warn("Erro ao parar câmera backend:", e);
+        }
+
+        // =========================
+        // 🔥 DESLIGA STREAM FRONT
+        // =========================
+        const video = document.getElementById("video");
+        if(video){
+            video.src = "";
+        }
+
+        // =========================
+        // 🔥 REDIRECIONA
+        // =========================
+        setTimeout(() => {
+            window.location.href = "/paciente";
+        }, 1500);
+
+    })
+    .catch(err => {
+        console.error(err);
+        statusEl.innerText = "❌ Falha na comunicação com servidor";
+        finalizado = false;
+    });
 }
 
 </script>
-
 </body>
 </html>
