@@ -742,6 +742,7 @@ def gen_frames():
 
         print("📴 Câmera desligada")
 
+
 @app.route('/video_feed')
 def video_feed():
     return Response(gen_frames(),
