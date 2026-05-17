@@ -1,13 +1,12 @@
 services:
   - type: web
     name: visionai
-    runtime: python
+    runtime: docker
     disk:
       name: visionai-data
       mountPath: /var/data
       sizeGB: 1
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers 1 --threads 4 --timeout 120
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
     envVars:
       - key: SECRET_KEY
