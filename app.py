@@ -15,7 +15,7 @@ from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
-from vision_engine import processar_frame, dados_medicao
+from vision_engine import processar_frame, dados_medicao, resetar_medicao
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from flask import Flask, render_template, Response, request, redirect, jsonify, session, send_file
 
@@ -489,6 +489,7 @@ def armacao():
 @app.route('/medicao')
 def medicao():
     paciente_id = request.args.get('paciente_id')
+    resetar_medicao()
 
     conn = get_db()
     cursor = conn.cursor()

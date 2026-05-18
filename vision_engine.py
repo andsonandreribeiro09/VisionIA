@@ -109,7 +109,7 @@ def suavizar(a, b):
 # -----------------------------
 def resetar_medicao():
     global historico_dp, historico_dnp_e, historico_dnp_d
-    global capturado, medicao_final, tempo_ok_inicio
+    global capturado, medicao_final, tempo_ok_inicio, escala_suave
 
     historico_dp = []
     historico_dnp_e = []
@@ -117,7 +117,28 @@ def resetar_medicao():
     capturado = False
     medicao_final = None
     tempo_ok_inicio = None
-    dados_medicao["confiavel"] = False
+    escala_suave = None
+
+    for chave in smooth:
+        smooth[chave] = None
+
+    if hasattr(processar_frame, "tempo_reset"):
+        processar_frame.tempo_reset = None
+
+    dados_medicao.update({
+        "dp": 0,
+        "dnp_e": 0,
+        "dnp_d": 0,
+        "score": 0,
+        "status": "Medindo",
+        "instrucao": "Posicione seu rosto",
+        "capturado": False,
+        "confiavel": False,
+        "distancia_cm": None,
+        "iris_px": None,
+        "validacao": {},
+        "historico": [],
+    })
 
 
 # -----------------------------
