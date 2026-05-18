@@ -7,7 +7,7 @@ import cv2
 import json
 import base64
 import threading
-from database import conectar
+from database import conectar, inserir_retornando_id, is_postgres_connection, sql_medicoes_hoje
 from datetime import datetime
 # ------------------------------
 # Imports de bibliotecas externas
@@ -72,7 +72,8 @@ camera = None
 
 def get_db():
     conn = conectar()
-    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+    if not is_postgres_connection(conn):
+        conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     return conn
 
 
@@ -359,11 +360,7 @@ def laboratorio():
     cursor.execute("SELECT COUNT(*) AS total FROM medicoes")
     total_medicoes = cursor.fetchone()["total"]
 
-    cursor.execute("""
-        SELECT COUNT(*) AS total
-        FROM medicoes
-        WHERE date(COALESCE(data, 'now')) = date('now')
-    """)
+    cursor.execute(sql_medicoes_hoje())
     medicoes_hoje = cursor.fetchone()["total"]
 
     cursor.execute("SELECT AVG(score) AS media FROM medicoes WHERE score IS NOT NULL")
@@ -922,7 +919,7 @@ def salvar_paciente():
         conn = get_db()
         cursor = conn.cursor()
 
-        cursor.execute("""
+        paciente_id = inserir_retornando_id(cursor, """
         INSERT INTO pacientes 
         (nome, rg, data_nascimento, sexo, idade, telefone, data_exame)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -935,8 +932,6 @@ def salvar_paciente():
             telefone,
             data_exame
         ))
-
-        paciente_id = cursor.lastrowid
 
         conn.commit()
         conn.close()
@@ -968,23 +963,6 @@ def salvar_receita():
 
     conn = get_db()
     cursor = conn.cursor()
-
-    # Cria a tabela se não existir
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS receitas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        paciente_id INTEGER NOT NULL,
-        od_esf REAL,
-        od_cil REAL,
-        od_eixo INTEGER,
-        oe_esf REAL,
-        oe_cil REAL,
-        oe_eixo INTEGER,
-        adicao REAL,
-        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-    conn.commit()
 
     # Pega os valores do formulário de forma segura
     od_esf = float(request.form.get("od_esf_longe", 0) or 0)
