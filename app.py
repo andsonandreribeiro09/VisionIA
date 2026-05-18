@@ -371,6 +371,36 @@ def healthz():
     }
 
 
+@app.route("/db-status")
+def db_status():
+    config_banco = database_config()
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) AS total FROM pacientes")
+        pacientes_total = cursor.fetchone()["total"]
+        cursor.execute("SELECT COUNT(*) AS total FROM medicoes")
+        medicoes_total = cursor.fetchone()["total"]
+        conn.close()
+
+        return {
+            "status": "ok",
+            "database": config_banco["backend"],
+            "database_persistente": config_banco["persistente"],
+            "pacientes": pacientes_total,
+            "medicoes": medicoes_total,
+        }
+
+    except Exception as exc:
+        return {
+            "status": "erro",
+            "database": config_banco["backend"],
+            "database_persistente": config_banco["persistente"],
+            "erro": str(exc),
+        }, 500
+
+
 @app.route("/paciente")
 def paciente():
     return render_template("paciente.html")

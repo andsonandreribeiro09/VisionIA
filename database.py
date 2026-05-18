@@ -147,7 +147,7 @@ def sql_medicoes_hoje():
         return """
             SELECT COUNT(*) AS total
             FROM medicoes
-            WHERE TO_DATE(SUBSTRING(COALESCE(NULLIF(data, ''), CURRENT_DATE::text), 1, 10), 'YYYY-MM-DD') = CURRENT_DATE
+            WHERE LEFT(COALESCE(NULLIF(data, ''), CURRENT_DATE::text), 10) = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
         """
 
     return """
@@ -326,7 +326,7 @@ def criar_tabelas_postgres(cursor):
         oe_eixo INTEGER,
         adicao REAL,
         tipo_grau TEXT,
-        data_criacao TEXT DEFAULT CURRENT_TIMESTAMP::text
+        data_criacao TEXT DEFAULT (CURRENT_TIMESTAMP::text)
     )
     """)
 
@@ -362,7 +362,7 @@ def criar_tabelas_postgres(cursor):
         dnp_e REAL,
         dnp_d REAL,
         score REAL,
-        data TEXT DEFAULT CURRENT_TIMESTAMP::text,
+        data TEXT DEFAULT (CURRENT_TIMESTAMP::text),
         validacao_json TEXT,
         historico_json TEXT,
         foto_captura TEXT,
@@ -384,7 +384,7 @@ def criar_tabelas_postgres(cursor):
         fator_dnp_d REAL DEFAULT 1,
         amostras INTEGER DEFAULT 0,
         erro_medio REAL DEFAULT 0,
-        atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP::text,
+        atualizado_em TEXT DEFAULT (CURRENT_TIMESTAMP::text),
         UNIQUE(sexo, faixa)
     )
     """)
@@ -409,7 +409,7 @@ def criar_tabelas_postgres(cursor):
         erro_dp REAL,
         erro_dnp_e REAL,
         erro_dnp_d REAL,
-        criado_em TEXT DEFAULT CURRENT_TIMESTAMP::text
+        criado_em TEXT DEFAULT (CURRENT_TIMESTAMP::text)
     )
     """)
 
