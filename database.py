@@ -18,6 +18,14 @@ def postgres_disponivel():
     return database_url.lower().startswith(POSTGRES_PREFIXES)
 
 
+def postgres_obrigatorio():
+    return os.getenv("VISIONAI_REQUIRE_DATABASE_URL", "0") == "1"
+
+
+def postgres_obrigatorio_ausente():
+    return postgres_obrigatorio() and not postgres_disponivel()
+
+
 def database_backend():
     return "postgresql" if postgres_disponivel() else "sqlite"
 
@@ -28,12 +36,14 @@ def database_config():
             "backend": "postgresql",
             "persistente": True,
             "label": "PostgreSQL Render",
+            "bloquear_gravacao": False,
         }
 
     return {
         "backend": "sqlite",
         "persistente": False,
-        "label": "SQLite local",
+        "label": "PostgreSQL nao configurado" if postgres_obrigatorio_ausente() else "SQLite local",
+        "bloquear_gravacao": postgres_obrigatorio_ausente(),
     }
 
 

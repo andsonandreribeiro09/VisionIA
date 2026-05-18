@@ -62,6 +62,17 @@ def debug_log(*args):
     if DEBUG_VISIONAI:
         print(*args)
 
+
+def gravacao_bloqueada_por_banco():
+    return database_config().get("bloquear_gravacao", False)
+
+
+def mensagem_banco_obrigatorio():
+    return (
+        "Banco PostgreSQL nao configurado no Render. "
+        "Configure DATABASE_URL no Web Service antes de cadastrar pacientes."
+    )
+
 # -----------------------------
 # CONFIG INICIAL
 # -----------------------------
@@ -1200,6 +1211,9 @@ def gerar_pdf(paciente_id):
 @app.route("/salvar_paciente", methods=["POST"])
 def salvar_paciente():
     try:
+        if gravacao_bloqueada_por_banco():
+            return mensagem_banco_obrigatorio(), 503
+
         nome = request.form["nome"]
         rg = request.form["rg"]
         data_nascimento = request.form["data_nascimento"]
@@ -1249,6 +1263,9 @@ def salvar_paciente():
 @app.route("/salvar_receita", methods=["POST"])
 def salvar_receita():
     paciente_id = session.get("paciente_id")
+
+    if gravacao_bloqueada_por_banco():
+        return mensagem_banco_obrigatorio(), 503
 
     if not paciente_id:
         return redirect("/paciente")
@@ -1498,6 +1515,9 @@ def salvar_medicao():
     import json
     import statistics
 
+    if gravacao_bloqueada_por_banco():
+        return {"status": "erro", "msg": mensagem_banco_obrigatorio()}, 503
+
     dados = request.get_json()
 
     dp = float(dados["dp"])
@@ -1603,6 +1623,9 @@ def salvar_medicao():
 
 @app.route("/salvar_foto", methods=["POST"])
 def salvar_foto():
+    if gravacao_bloqueada_por_banco():
+        return {"status": "erro", "msg": mensagem_banco_obrigatorio()}, 503
+
     dados = request.json
 
     paciente_id = dados["paciente_id"]
@@ -1671,6 +1694,8 @@ def reset_medicoes(paciente_id):
 
 @app.route("/salvar_lote", methods=["POST"])
 def salvar_lote():
+    if gravacao_bloqueada_por_banco():
+        return {"status": "erro", "msg": mensagem_banco_obrigatorio()}, 503
 
     dados = request.json
     paciente_id = dados["paciente_id"]
