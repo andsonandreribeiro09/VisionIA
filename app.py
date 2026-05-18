@@ -34,6 +34,7 @@ CSV_PACIENTES_MEDICOES = os.path.join(DATA_DIR, "pacientes_medicoes.csv")
 CSV_LOCK = threading.Lock()
 CSV_COLUNAS = [
     "paciente_id",
+    "ods",
     "nome",
     "rg",
     "data_nascimento",
@@ -155,6 +156,35 @@ def registrar_medicao_no_csv(paciente_id, dados_medicao_csv):
     dados.update(dados_medicao_csv)
     salvar_linha_csv(paciente_id, dados)
 
+
+def gerar_ods(cursor):
+    ano = datetime.now().year
+    prefixo = f"ODS-{ano}-"
+
+    cursor.execute("""
+        SELECT ods
+        FROM medicoes
+        WHERE ods LIKE ?
+        ORDER BY ods DESC
+        LIMIT 1
+    """, (f"{prefixo}%",))
+
+    ultimo = cursor.fetchone()
+    proximo = 1
+
+    if ultimo and ultimo.get("ods"):
+        try:
+            proximo = int(ultimo["ods"].split("-")[-1]) + 1
+        except (ValueError, IndexError):
+            proximo = 1
+
+    while True:
+        ods = f"{prefixo}{proximo:06d}"
+        cursor.execute("SELECT 1 FROM medicoes WHERE ods=? LIMIT 1", (ods,))
+        if cursor.fetchone() is None:
+            return ods
+        proximo += 1
+
 # -----------------------------
 # ROTAS
 # -----------------------------
@@ -255,6 +285,93 @@ def dashboard():
         receitas=receitas,
         armacao=armacao,
         pacientes=pacientes
+    )
+
+
+@app.route("/laboratorio")
+def laboratorio():
+    busca = (request.args.get("q") or "").strip()
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) AS total FROM pacientes")
+    total_pacientes = cursor.fetchone()["total"]
+
+    cursor.execute("SELECT COUNT(*) AS total FROM medicoes")
+    total_medicoes = cursor.fetchone()["total"]
+
+    cursor.execute("""
+        SELECT COUNT(*) AS total
+        FROM medicoes
+        WHERE date(COALESCE(data, 'now')) = date('now')
+    """)
+    medicoes_hoje = cursor.fetchone()["total"]
+
+    cursor.execute("SELECT AVG(score) AS media FROM medicoes WHERE score IS NOT NULL")
+    score_medio = cursor.fetchone()["media"] or 0
+
+    cursor.execute("""
+        SELECT m.*, p.nome, p.rg, p.telefone, p.sexo, p.data_nascimento
+        FROM medicoes m
+        LEFT JOIN pacientes p ON p.id = m.paciente_id
+        ORDER BY COALESCE(m.data, '') DESC, m.id DESC
+        LIMIT 200
+    """)
+    todas_medicoes = cursor.fetchall()
+
+    def preparar_medicao(medicao):
+        item = dict(medicao)
+        validacao = {}
+
+        if item.get("validacao_json"):
+            try:
+                validacao = json.loads(item["validacao_json"])
+            except json.JSONDecodeError:
+                validacao = {}
+
+        item["status_validacao"] = validacao.get("status", "PENDENTE")
+        item["erro_max"] = validacao.get("erro_max", "")
+        item["desvio"] = validacao.get("desvio", "")
+        return item
+
+    medicoes_preparadas = [preparar_medicao(m) for m in todas_medicoes]
+    aprovadas = sum(1 for m in medicoes_preparadas if m["status_validacao"] == "APROVADO")
+    revisar = sum(1 for m in medicoes_preparadas if m["status_validacao"] != "APROVADO")
+
+    resultados = medicoes_preparadas
+    if busca:
+        termo = busca.lower()
+        resultados = [
+            m for m in medicoes_preparadas
+            if termo in (m.get("ods") or "").lower()
+            or termo in (m.get("nome") or "").lower()
+            or termo in (m.get("rg") or "").lower()
+        ]
+
+    medicao_selecionada = None
+    if busca:
+        medicao_selecionada = next(
+            (m for m in resultados if (m.get("ods") or "").lower() == busca.lower()),
+            resultados[0] if len(resultados) == 1 else None
+        )
+
+    conn.close()
+
+    return render_template(
+        "laboratorio.html",
+        busca=busca,
+        resultados=resultados[:80],
+        recentes=medicoes_preparadas[:8],
+        medicao=medicao_selecionada,
+        stats={
+            "total_pacientes": total_pacientes,
+            "total_medicoes": total_medicoes,
+            "medicoes_hoje": medicoes_hoje,
+            "aprovadas": aprovadas,
+            "revisar": revisar,
+            "score_medio": round(score_medio, 1),
+        }
     )
 
 
@@ -946,15 +1063,17 @@ def salvar_medicao():
 
     conn = get_db()
     cursor = conn.cursor()
+    ods = gerar_ods(cursor)
 
     cursor.execute("""
     INSERT INTO medicoes (
-        paciente_id, dp, dnp_e, dnp_d, score,
+        paciente_id, ods, dp, dnp_e, dnp_d, score,
         validacao_json, historico_json, foto_captura, data
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     """, (
         dados["paciente_id"],
+        ods,
         dp,
         dnp_e,
         dnp_d,
@@ -968,6 +1087,7 @@ def salvar_medicao():
     conn.close()
 
     registrar_medicao_no_csv(dados["paciente_id"], {
+        "ods": ods,
         "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "dp": dp,
         "dnp_e": dnp_e,
@@ -981,6 +1101,7 @@ def salvar_medicao():
 
     return {
         "status": "ok",
+        "ods": ods,
         "validacao": validacao,
         "dp_final": dp
     }
@@ -1010,13 +1131,14 @@ def salvar_foto():
 
     conn = get_db()
     cursor = conn.cursor()
+    ods = gerar_ods(cursor)
 
     # 🔥 SALVA MEDIÇÃO COMPLETA
     cursor.execute("""
         INSERT INTO medicoes 
-        (paciente_id, dp, dnp_e, dnp_d, score, data, caminho_imagem)
-        VALUES (?, ?, ?, ?, ?, datetime('now'), ?)
-    """, (paciente_id, dp, dnp_e, dnp_d, score, caminho))
+        (paciente_id, ods, dp, dnp_e, dnp_d, score, data, caminho_imagem)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?)
+    """, (paciente_id, ods, dp, dnp_e, dnp_d, score, caminho))
 
     # 🔥 Atualiza só a última foto no paciente (opcional)
     cursor.execute("""
@@ -1027,6 +1149,7 @@ def salvar_foto():
     conn.close()
 
     registrar_medicao_no_csv(paciente_id, {
+        "ods": ods,
         "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "dp": dp,
         "dnp_e": dnp_e,
@@ -1068,6 +1191,7 @@ def salvar_lote():
 
     conn = get_db()
     cursor = conn.cursor()
+    ods = gerar_ods(cursor)
 
     dps = []
     dnps_e = []
@@ -1134,10 +1258,11 @@ def salvar_lote():
 
     cursor.execute("""
         INSERT INTO medicoes 
-        (paciente_id, dp, dnp_e, dnp_d, score, caminho_imagem, validacao_json, historico_json, data)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        (paciente_id, ods, dp, dnp_e, dnp_d, score, caminho_imagem, validacao_json, historico_json, data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     """, (
         paciente_id,
+        ods,
         round(media, 2),  # 🔥 usa média
         round(dnp_e_media, 2),
         round(dnp_d_media, 2),
@@ -1158,6 +1283,7 @@ def salvar_lote():
     conn.close()
 
     registrar_medicao_no_csv(paciente_id, {
+        "ods": ods,
         "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "dp": round(media, 2),
         "dnp_e": round(dnp_e_media, 2),
@@ -1173,6 +1299,7 @@ def salvar_lote():
 
     return {
         "status": "ok",
+        "ods": ods,
         "dp_medio": round(media, 2),
         "dnp_e_media": round(dnp_e_media, 2),
         "dnp_d_media": round(dnp_d_media, 2),

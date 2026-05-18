@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from datetime import datetime
 
 def conectar():
 
@@ -134,12 +135,66 @@ def conectar():
     if "data" not in colunas:
         cursor.execute("ALTER TABLE medicoes ADD COLUMN data TEXT")
 
+    if "ods" not in colunas:
+        cursor.execute("ALTER TABLE medicoes ADD COLUMN ods TEXT")
+
+    cursor.execute("""
+        SELECT id, data
+        FROM medicoes
+        WHERE ods IS NULL OR ods = ''
+        ORDER BY COALESCE(data, ''), id
+    """)
+    medicoes_sem_ods = cursor.fetchall()
+
+    proximos_ods = {}
+
+    def proximo_ods(ano):
+        if ano not in proximos_ods:
+            cursor.execute("""
+                SELECT ods
+                FROM medicoes
+                WHERE ods LIKE ?
+                ORDER BY ods DESC
+                LIMIT 1
+            """, (f"ODS-{ano}-%",))
+            ultimo = cursor.fetchone()
+            numero = 1
+
+            if ultimo and ultimo["ods"]:
+                try:
+                    numero = int(ultimo["ods"].split("-")[-1]) + 1
+                except (ValueError, IndexError):
+                    numero = 1
+
+            proximos_ods[ano] = numero
+
+        while True:
+            ods = f"ODS-{ano}-{proximos_ods[ano]:06d}"
+            proximos_ods[ano] += 1
+            cursor.execute("SELECT 1 FROM medicoes WHERE ods=? LIMIT 1", (ods,))
+            if cursor.fetchone() is None:
+                return ods
+
+    for medicao in medicoes_sem_ods:
+        data = medicao["data"] or ""
+        ano = data[:4] if len(data) >= 4 and data[:4].isdigit() else str(datetime.now().year)
+        cursor.execute(
+            "UPDATE medicoes SET ods=? WHERE id=?",
+            (proximo_ods(ano), medicao["id"])
+        )
+
     # =====================================================
     # ⚡ ÍNDICES (PERFORMANCE)
     # =====================================================
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_medicoes_paciente
     ON medicoes(paciente_id)
+    """)
+
+    cursor.execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_medicoes_ods
+    ON medicoes(ods)
+    WHERE ods IS NOT NULL
     """)
 
     # =====================================================

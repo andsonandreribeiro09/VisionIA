@@ -798,6 +798,7 @@ function finalizar(){
         // 🔥 RESULTADO NA TELA
         // =========================
         statusEl.innerText = `
+ODS: ${resp.ods || "-"}
 DP médio: ${resp.dp_medio}mm  
 Erro: ${resp.erro_max}mm  
 ${resp.status_validacao === "APROVADO" ? "✅ APROVADO" : "❌ REPROVADO"}

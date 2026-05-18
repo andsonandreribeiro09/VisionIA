@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionAI Lab</title>
+
+<style>
+:root{
+    --bg:#f4f1ea;
+    --paper:#ffffff;
+    --ink:#182226;
+    --muted:#687579;
+    --line:#ddd6ca;
+    --brand:#008b9a;
+    --ok:#147a43;
+    --warn:#9b2c3a;
+}
+
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    min-height:100vh;
+    font-family:"Segoe UI", system-ui, sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+}
+
+.layout{
+    min-height:100vh;
+    display:grid;
+    grid-template-columns:240px minmax(0, 1fr);
+}
+
+.sidebar{
+    padding:26px 22px;
+    background:#fff;
+    border-right:1px solid var(--line);
+}
+
+.brand{
+    font-size:13px;
+    font-weight:800;
+    color:var(--brand);
+    text-transform:uppercase;
+}
+
+.sidebar h1{
+    margin:8px 0 30px;
+    font-size:26px;
+    line-height:1;
+}
+
+.nav a{
+    display:block;
+    padding:12px 14px;
+    margin-bottom:8px;
+    border-radius:8px;
+    color:var(--ink);
+    text-decoration:none;
+    font-weight:700;
+}
+
+.nav a.active{
+    background:var(--brand);
+    color:white;
+}
+
+.main{
+    padding:28px;
+}
+
+.topbar{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:20px;
+    margin-bottom:22px;
+}
+
+.topbar h2{
+    margin:0;
+    font-size:30px;
+}
+
+.topbar p{
+    margin:6px 0 0;
+    color:var(--muted);
+    font-weight:600;
+}
+
+.search{
+    display:flex;
+    gap:10px;
+    width:min(520px, 100%);
+}
+
+.search input{
+    flex:1;
+    min-height:46px;
+    padding:0 14px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:15px;
+}
+
+.search button{
+    min-height:46px;
+    padding:0 20px;
+    border:0;
+    border-radius:8px;
+    background:var(--brand);
+    color:white;
+    font-weight:800;
+    cursor:pointer;
+}
+
+.stats{
+    display:grid;
+    grid-template-columns:repeat(6, minmax(120px, 1fr));
+    gap:12px;
+    margin-bottom:22px;
+}
+
+.metric{
+    min-height:96px;
+    padding:16px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+}
+
+.metric span{
+    display:block;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+
+.metric strong{
+    display:block;
+    margin-top:10px;
+    font-size:30px;
+    line-height:1;
+}
+
+.detail{
+    margin-bottom:22px;
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) 260px;
+    gap:14px;
+    align-items:stretch;
+}
+
+.detail-main,
+.photo-box,
+.table-wrap{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+}
+
+.detail-main{
+    padding:18px;
+}
+
+.detail-main h3{
+    margin:0 0 12px;
+    font-size:24px;
+}
+
+.ods{
+    display:inline-flex;
+    padding:7px 10px;
+    border-radius:8px;
+    background:#e8f7f9;
+    color:#006b78;
+    font-weight:800;
+    letter-spacing:0;
+}
+
+.detail-grid{
+    margin-top:16px;
+    display:grid;
+    grid-template-columns:repeat(4, minmax(120px, 1fr));
+    gap:10px;
+}
+
+.detail-field{
+    padding:12px;
+    border:1px solid #eee8dd;
+    border-radius:8px;
+}
+
+.detail-field span{
+    display:block;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:800;
+}
+
+.detail-field strong{
+    display:block;
+    margin-top:6px;
+    font-size:20px;
+}
+
+.photo-box{
+    padding:12px;
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+}
+
+.photo-box img{
+    max-width:100%;
+    max-height:230px;
+    border-radius:8px;
+    object-fit:cover;
+}
+
+.table-wrap{
+    overflow:hidden;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+}
+
+th,
+td{
+    padding:13px 14px;
+    border-bottom:1px solid #eee8dd;
+    text-align:left;
+    font-size:14px;
+}
+
+th{
+    color:var(--muted);
+    background:#faf8f3;
+    font-size:12px;
+    text-transform:uppercase;
+}
+
+.status{
+    display:inline-flex;
+    padding:6px 9px;
+    border-radius:8px;
+    color:white;
+    font-size:12px;
+    font-weight:800;
+}
+
+.status.ok{background:var(--ok)}
+.status.warn{background:var(--warn)}
+.muted{color:var(--muted)}
+
+.empty{
+    padding:28px;
+    color:var(--muted);
+    font-weight:700;
+}
+
+@media(max-width:1100px){
+    .layout{grid-template-columns:1fr}
+    .sidebar{display:none}
+    .stats{grid-template-columns:repeat(3, 1fr)}
+    .detail{grid-template-columns:1fr}
+}
+
+@media(max-width:760px){
+    .main{padding:18px}
+    .topbar{display:block}
+    .search{margin-top:16px}
+    .stats{grid-template-columns:repeat(2, 1fr)}
+    .detail-grid{grid-template-columns:repeat(2, 1fr)}
+}
+</style>
+</head>
+
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="brand">VisionAI</div>
+        <h1>Lab</h1>
+        <nav class="nav">
+            <a class="active" href="/laboratorio">Dashboard</a>
+            <a href="/pacientes">Pacientes</a>
+            <a href="/dashboard">Painel antigo</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div>
+                <h2>Painel do laboratório</h2>
+                <p>Monitore atendimentos, medições e localize qualquer exame pelo ODS.</p>
+            </div>
+
+            <form class="search" action="/laboratorio" method="get">
+                <input name="q" value="{{ busca }}" placeholder="Buscar ODS, paciente ou RG">
+                <button type="submit">Buscar</button>
+            </form>
+        </header>
+
+        <section class="stats">
+            <div class="metric"><span>Pacientes</span><strong>{{ stats.total_pacientes }}</strong></div>
+            <div class="metric"><span>Medições</span><strong>{{ stats.total_medicoes }}</strong></div>
+            <div class="metric"><span>Hoje</span><strong>{{ stats.medicoes_hoje }}</strong></div>
+            <div class="metric"><span>Aprovadas</span><strong>{{ stats.aprovadas }}</strong></div>
+            <div class="metric"><span>Revisar</span><strong>{{ stats.revisar }}</strong></div>
+            <div class="metric"><span>Score médio</span><strong>{{ stats.score_medio }}</strong></div>
+        </section>
+
+        {% if medicao %}
+        <section class="detail">
+            <div class="detail-main">
+                <span class="ods">{{ medicao.ods or "Sem ODS" }}</span>
+                <h3>{{ medicao.nome or "Paciente sem nome" }}</h3>
+                <p class="muted">RG {{ medicao.rg or "-" }} | {{ medicao.data or "-" }}</p>
+
+                <div class="detail-grid">
+                    <div class="detail-field"><span>DP</span><strong>{{ "%.2f"|format(medicao.dp or 0) }}</strong></div>
+                    <div class="detail-field"><span>DNP E</span><strong>{{ "%.2f"|format(medicao.dnp_e or 0) }}</strong></div>
+                    <div class="detail-field"><span>DNP D</span><strong>{{ "%.2f"|format(medicao.dnp_d or 0) }}</strong></div>
+                    <div class="detail-field"><span>Score</span><strong>{{ "%.1f"|format(medicao.score or 0) }}</strong></div>
+                    <div class="detail-field"><span>Status</span><strong>{{ medicao.status_validacao }}</strong></div>
+                    <div class="detail-field"><span>Erro máx.</span><strong>{{ medicao.erro_max or "-" }}</strong></div>
+                    <div class="detail-field"><span>Telefone</span><strong>{{ medicao.telefone or "-" }}</strong></div>
+                    <div class="detail-field"><span>Paciente ID</span><strong>{{ medicao.paciente_id }}</strong></div>
+                </div>
+            </div>
+
+            <div class="photo-box">
+                {% if medicao.caminho_imagem %}
+                <img src="/{{ medicao.caminho_imagem }}" alt="Foto da medição">
+                {% else %}
+                <span class="muted">Sem foto final</span>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ODS</th>
+                        <th>Paciente</th>
+                        <th>Data</th>
+                        <th>DP</th>
+                        <th>DNP E</th>
+                        <th>DNP D</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in resultados %}
+                    <tr>
+                        <td>
+                            {% if item.ods %}
+                            <a class="ods" href="/laboratorio?q={{ item.ods }}">{{ item.ods }}</a>
+                            {% else %}
+                            <span class="ods">Sem ODS</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.nome or "-" }}</td>
+                        <td>{{ item.data or "-" }}</td>
+                        <td>{{ "%.2f"|format(item.dp or 0) }}</td>
+                        <td>{{ "%.2f"|format(item.dnp_e or 0) }}</td>
+                        <td>{{ "%.2f"|format(item.dnp_d or 0) }}</td>
+                        <td>{{ "%.1f"|format(item.score or 0) }}</td>
+                        <td>
+                            <span class="status {{ 'ok' if item.status_validacao == 'APROVADO' else 'warn' }}">
+                                {{ item.status_validacao }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td class="empty" colspan="8">Nenhuma medição encontrada.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</div>
+</body>
+</html>
