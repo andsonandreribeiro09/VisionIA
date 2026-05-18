@@ -259,6 +259,62 @@ th{
 .status.warn{background:var(--warn)}
 .muted{color:var(--muted)}
 
+.alert{
+    margin-bottom:14px;
+    padding:12px 14px;
+    border-radius:8px;
+    font-weight:700;
+}
+
+.alert.ok{
+    color:#0d512c;
+    background:#def4e8;
+}
+
+.alert.warn{
+    color:#6d1620;
+    background:#f8dbe0;
+}
+
+.danger-zone{
+    margin-top:18px;
+    padding:14px;
+    border:1px solid #efc7cc;
+    border-radius:8px;
+    background:#fff8f9;
+}
+
+.danger-zone h4{
+    margin:0 0 6px;
+    font-size:15px;
+}
+
+.danger-zone form{
+    margin-top:12px;
+    display:grid;
+    grid-template-columns:minmax(180px, 1fr) auto;
+    gap:10px;
+}
+
+.danger-zone input{
+    min-height:42px;
+    padding:0 12px;
+    border:1px solid #efc7cc;
+    border-radius:8px;
+    font-size:14px;
+}
+
+.danger-zone button{
+    min-height:42px;
+    padding:0 16px;
+    border:0;
+    border-radius:8px;
+    color:white;
+    background:var(--warn);
+    font-weight:800;
+    cursor:pointer;
+}
+
 .empty{
     padding:28px;
     color:var(--muted);
@@ -278,6 +334,7 @@ th{
     .search{margin-top:16px}
     .stats{grid-template-columns:repeat(2, 1fr)}
     .detail-grid{grid-template-columns:repeat(2, 1fr)}
+    .danger-zone form{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -290,8 +347,6 @@ th{
         <nav class="nav">
             <a class="active" href="/laboratorio">Dashboard</a>
             <a href="/laboratorio/calibracao">Calibração facial</a>
-            <a href="/pacientes">Pacientes</a>
-            <a href="/dashboard">Painel antigo</a>
         </nav>
     </aside>
 
@@ -317,6 +372,14 @@ th{
             <div class="metric"><span>Score médio</span><strong>{{ stats.score_medio }}</strong></div>
         </section>
 
+        {% if mensagem %}
+        <div class="alert ok">{{ mensagem }}</div>
+        {% endif %}
+
+        {% if erro %}
+        <div class="alert warn">{{ erro }}</div>
+        {% endif %}
+
         {% if medicao %}
         <section class="detail">
             <div class="detail-main">
@@ -336,6 +399,17 @@ th{
                     <div class="detail-field"><span>Erro máx.</span><strong>{{ medicao.erro_max or "-" }}</strong></div>
                     <div class="detail-field"><span>Telefone</span><strong>{{ medicao.telefone or "-" }}</strong></div>
                     <div class="detail-field"><span>Paciente ID</span><strong>{{ medicao.paciente_id }}</strong></div>
+                </div>
+
+                <div class="danger-zone">
+                    <h4>Excluir dados do paciente</h4>
+                    <p class="muted">Remove cadastro, medições, receitas, pedidos, amostras de calibração e fotos vinculadas.</p>
+                    <form method="post" action="/laboratorio/excluir-paciente">
+                        <input type="hidden" name="paciente_id" value="{{ medicao.paciente_id }}">
+                        <input type="hidden" name="retorno_q" value="{{ busca }}">
+                        <input name="confirmacao" placeholder="Digite: {{ medicao.nome }}" autocomplete="off" required>
+                        <button type="submit">Excluir paciente</button>
+                    </form>
                 </div>
             </div>
 

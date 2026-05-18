@@ -7,6 +7,8 @@ import cv2
 import json
 import base64
 import threading
+from pathlib import Path
+from urllib.parse import urlencode
 from database import conectar, inserir_retornando_id, is_postgres_connection, sql_medicoes_hoje
 from datetime import datetime
 # ------------------------------
@@ -123,6 +125,83 @@ def salvar_linha_csv(paciente_id, dados):
                 linha_existente[chave] = "" if valor is None else valor
 
         escrever_linhas_csv(linhas)
+
+
+def remover_paciente_do_csv(paciente_id):
+    paciente_id = str(paciente_id)
+
+    with CSV_LOCK:
+        linhas = ler_linhas_csv()
+        linhas = [linha for linha in linhas if linha.get("paciente_id") != paciente_id]
+        escrever_linhas_csv(linhas)
+
+
+def remover_arquivos_vinculados(caminhos):
+    raizes_permitidas = [
+        Path(BASE_DIR, "static").resolve(),
+        Path(DATA_DIR).resolve(),
+    ]
+
+    for caminho in caminhos:
+        if not caminho or str(caminho).startswith(("http://", "https://")):
+            continue
+
+        arquivo = Path(caminho)
+        if not arquivo.is_absolute():
+            arquivo = Path(BASE_DIR, caminho)
+
+        try:
+            arquivo = arquivo.resolve()
+            permitido = any(arquivo.is_relative_to(raiz) for raiz in raizes_permitidas)
+            if permitido and arquivo.is_file():
+                arquivo.unlink()
+        except OSError:
+            debug_log("Nao foi possivel remover arquivo vinculado:", caminho)
+
+
+def recalcular_calibracao_facial(cursor):
+    cursor.execute("SELECT * FROM calibracao_facial_amostras ORDER BY id")
+    amostras = cursor.fetchall()
+    grupos = {}
+
+    for amostra in amostras:
+        chave = (amostra.get("sexo") or "outro", amostra.get("faixa") or "adulto")
+        grupos.setdefault(chave, []).append(amostra)
+
+    cursor.execute("DELETE FROM calibracao_facial")
+
+    for (sexo, faixa), itens in grupos.items():
+        total = len(itens)
+        fator_dp = sum(float(item.get("fator_dp") or 1) for item in itens) / total
+        fator_dnp_e = sum(float(item.get("fator_dnp_e") or 1) for item in itens) / total
+        fator_dnp_d = sum(float(item.get("fator_dnp_d") or 1) for item in itens) / total
+        erro_medio = sum(
+            (
+                float(item.get("erro_dp") or 0)
+                + float(item.get("erro_dnp_e") or 0)
+                + float(item.get("erro_dnp_d") or 0)
+            ) / 3
+            for item in itens
+        ) / total
+
+        cursor.execute("""
+            INSERT INTO calibracao_facial
+            (sexo, faixa, fator_dp, fator_dnp_e, fator_dnp_d, amostras, erro_medio, atualizado_em)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (
+            sexo,
+            faixa,
+            fator_dp,
+            fator_dnp_e,
+            fator_dnp_d,
+            total,
+            round(erro_medio, 3),
+        ))
+
+
+def redirect_laboratorio(**params):
+    query = urlencode({chave: valor for chave, valor in params.items() if valor})
+    return redirect(f"/laboratorio?{query}" if query else "/laboratorio")
 
 
 def registrar_paciente_no_csv(paciente):
@@ -350,6 +429,8 @@ def dashboard():
 @app.route("/laboratorio")
 def laboratorio():
     busca = (request.args.get("q") or "").strip()
+    mensagem = request.args.get("msg")
+    erro = request.args.get("erro")
 
     conn = get_db()
     cursor = conn.cursor()
@@ -416,6 +497,8 @@ def laboratorio():
     return render_template(
         "laboratorio.html",
         busca=busca,
+        mensagem=mensagem,
+        erro=erro,
         resultados=resultados[:80],
         recentes=medicoes_preparadas[:8],
         medicao=medicao_selecionada,
@@ -428,6 +511,66 @@ def laboratorio():
             "score_medio": round(score_medio, 1),
         }
     )
+
+
+@app.route("/laboratorio/excluir-paciente", methods=["POST"])
+def laboratorio_excluir_paciente():
+    paciente_id = request.form.get("paciente_id", type=int)
+    confirmacao = (request.form.get("confirmacao") or "").strip()
+
+    if not paciente_id:
+        return redirect_laboratorio(erro="Paciente invalido para exclusao.")
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
+        paciente = cursor.fetchone()
+
+        if not paciente:
+            conn.close()
+            return redirect_laboratorio(erro="Paciente nao encontrado.")
+
+        nome = (paciente.get("nome") or "").strip()
+        if confirmacao != nome:
+            conn.close()
+            return redirect_laboratorio(
+                q=request.form.get("retorno_q"),
+                erro="Para excluir, digite o nome do paciente exatamente como aparece no painel."
+            )
+
+        cursor.execute("""
+            SELECT caminho_imagem, foto_captura
+            FROM medicoes
+            WHERE paciente_id=?
+        """, (paciente_id,))
+        fotos_medicoes = cursor.fetchall()
+        caminhos = [paciente.get("foto")]
+
+        for foto in fotos_medicoes:
+            caminhos.extend([foto.get("caminho_imagem"), foto.get("foto_captura")])
+
+        cursor.execute("DELETE FROM calibracao_facial_amostras WHERE paciente_id=?", (paciente_id,))
+        cursor.execute("DELETE FROM medicoes WHERE paciente_id=?", (paciente_id,))
+        cursor.execute("DELETE FROM receitas WHERE paciente_id=?", (paciente_id,))
+        cursor.execute("DELETE FROM pedidos WHERE paciente_id=?", (paciente_id,))
+        cursor.execute("DELETE FROM pacientes WHERE id=?", (paciente_id,))
+        recalcular_calibracao_facial(cursor)
+
+        conn.commit()
+        conn.close()
+
+        remover_paciente_do_csv(paciente_id)
+        remover_arquivos_vinculados(caminhos)
+
+        return redirect_laboratorio(msg=f"Paciente {nome} e dados vinculados foram excluidos.")
+
+    except Exception as exc:
+        conn.rollback()
+        conn.close()
+        debug_log("Erro ao excluir paciente:", exc)
+        return redirect_laboratorio(erro="Nao foi possivel excluir o paciente. Tente novamente.")
 
 
 @app.route("/laboratorio/calibracao", methods=["GET", "POST"])
