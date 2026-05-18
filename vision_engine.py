@@ -89,8 +89,18 @@ olho_dir = [362, 385, 387, 263, 373, 380]
 
 def olho_aberto(landmarks, indices, w, h):
     pts = [(landmarks[i].x * w, landmarks[i].y * h) for i in indices]
-    altura = abs(pts[1][1] - pts[5][1])
-    return altura > 6
+    vertical_1 = np.linalg.norm(np.array(pts[1]) - np.array(pts[5]))
+    vertical_2 = np.linalg.norm(np.array(pts[2]) - np.array(pts[4]))
+    horizontal = np.linalg.norm(np.array(pts[0]) - np.array(pts[3]))
+
+    if horizontal <= 0:
+        return False
+
+    abertura_px = (vertical_1 + vertical_2) / 2
+    abertura_relativa = abertura_px / horizontal
+    minimo_px = max(2.0, h * 0.0035)
+
+    return abertura_px >= minimo_px or abertura_relativa >= 0.045
 
 # -----------------------------
 # SUAVIZAÇÃO
