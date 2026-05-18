@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionAI Lab • Métricas</title>
+
+<style>
+:root{
+    --bg:#f4f1ea;
+    --paper:#ffffff;
+    --ink:#182226;
+    --muted:#687579;
+    --line:#ddd6ca;
+    --brand:#008b9a;
+    --brand-soft:#dff5f7;
+    --ok:#147a43;
+    --warn:#9b2c3a;
+    --neutral:#647176;
+}
+
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    min-height:100vh;
+    font-family:"Segoe UI", system-ui, sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+}
+
+.layout{
+    min-height:100vh;
+    display:grid;
+    grid-template-columns:240px minmax(0, 1fr);
+}
+
+.sidebar{
+    padding:26px 22px;
+    background:#fff;
+    border-right:1px solid var(--line);
+}
+
+.brand{
+    font-size:13px;
+    font-weight:800;
+    color:var(--brand);
+    text-transform:uppercase;
+}
+
+.sidebar h1{
+    margin:8px 0 30px;
+    font-size:26px;
+    line-height:1;
+}
+
+.nav a{
+    display:block;
+    padding:12px 14px;
+    margin-bottom:8px;
+    border-radius:8px;
+    color:var(--ink);
+    text-decoration:none;
+    font-weight:700;
+}
+
+.nav a.active{
+    background:var(--brand);
+    color:white;
+}
+
+.sidebar-system{
+    margin-top:28px;
+    padding-top:18px;
+    border-top:1px solid var(--line);
+}
+
+.sidebar-system h2{
+    margin:0 0 10px;
+    font-size:13px;
+    color:var(--muted);
+    text-transform:uppercase;
+}
+
+.db-badge{
+    display:inline-flex;
+    width:100%;
+    padding:8px 10px;
+    border-radius:8px;
+    color:white;
+    background:var(--ok);
+    font-size:12px;
+    font-weight:800;
+}
+
+.db-badge.warn{
+    background:var(--warn);
+}
+
+.sidebar-system .muted{
+    margin:10px 0 0;
+    font-size:12px;
+    line-height:1.35;
+}
+
+.wipe-form{
+    margin-top:14px;
+    display:grid;
+    gap:8px;
+}
+
+.wipe-form input{
+    min-height:40px;
+    width:100%;
+    padding:0 10px;
+    border:1px solid #efc7cc;
+    border-radius:8px;
+    font-size:13px;
+}
+
+.wipe-form button{
+    min-height:40px;
+    padding:0 12px;
+    border:0;
+    border-radius:8px;
+    color:white;
+    background:var(--warn);
+    font-weight:800;
+    cursor:pointer;
+}
+
+.main{
+    padding:28px;
+}
+
+.topbar{
+    margin-bottom:22px;
+}
+
+.topbar h2{
+    margin:0;
+    font-size:30px;
+}
+
+.topbar p{
+    max-width:780px;
+    margin:6px 0 0;
+    color:var(--muted);
+    font-weight:600;
+}
+
+.stats{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(140px, 1fr));
+    gap:12px;
+    margin-bottom:22px;
+}
+
+.metric,
+.panel{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+}
+
+.metric{
+    min-height:104px;
+    padding:16px;
+}
+
+.metric span{
+    display:block;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+
+.metric strong{
+    display:block;
+    margin-top:10px;
+    font-size:31px;
+    line-height:1;
+}
+
+.metric small{
+    display:block;
+    margin-top:8px;
+    color:var(--muted);
+    font-weight:700;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:minmax(0, 1.4fr) minmax(320px, .8fr);
+    gap:14px;
+    align-items:start;
+    margin-bottom:14px;
+}
+
+.panel{
+    padding:18px;
+}
+
+.panel h3{
+    margin:0 0 14px;
+    font-size:20px;
+}
+
+.day-chart,
+.month-chart{
+    min-height:240px;
+    display:grid;
+    grid-template-columns:repeat(14, minmax(28px, 1fr));
+    gap:10px;
+    align-items:end;
+}
+
+.month-chart{
+    grid-template-columns:repeat(6, minmax(56px, 1fr));
+}
+
+.day,
+.month{
+    min-height:220px;
+    display:grid;
+    grid-template-rows:1fr auto auto;
+    gap:8px;
+    align-items:end;
+}
+
+.bars{
+    height:170px;
+    display:flex;
+    justify-content:center;
+    align-items:end;
+    gap:4px;
+}
+
+.bar{
+    width:14px;
+    min-height:4px;
+    border-radius:6px 6px 0 0;
+    background:var(--brand);
+}
+
+.bar.secondary{
+    background:#82aeb3;
+}
+
+.bar.month-bar{
+    width:32px;
+    background:var(--brand);
+}
+
+.chart-label,
+.chart-value{
+    color:var(--muted);
+    font-size:12px;
+    font-weight:800;
+    text-align:center;
+}
+
+.chart-value{
+    color:var(--ink);
+}
+
+.legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:12px;
+    color:var(--muted);
+    font-size:13px;
+    font-weight:700;
+}
+
+.legend span{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+}
+
+.dot{
+    width:10px;
+    height:10px;
+    border-radius:999px;
+    background:var(--brand);
+}
+
+.dot.secondary{
+    background:#82aeb3;
+}
+
+.status-list{
+    display:grid;
+    gap:14px;
+}
+
+.status-row{
+    display:grid;
+    gap:7px;
+}
+
+.status-top{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    color:var(--muted);
+    font-size:13px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+
+.progress{
+    height:13px;
+    overflow:hidden;
+    border-radius:999px;
+    background:#eee8dd;
+}
+
+.progress-fill{
+    height:100%;
+    border-radius:999px;
+    background:var(--brand);
+}
+
+.progress-fill.ok{background:var(--ok)}
+.progress-fill.warn{background:var(--warn)}
+.progress-fill.neutral{background:var(--neutral)}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+}
+
+th,
+td{
+    padding:12px;
+    border-bottom:1px solid #eee8dd;
+    text-align:left;
+    font-size:14px;
+}
+
+th{
+    color:var(--muted);
+    background:#faf8f3;
+    font-size:12px;
+    text-transform:uppercase;
+}
+
+.table-wrap{
+    overflow:hidden;
+    border:1px solid var(--line);
+    border-radius:8px;
+}
+
+.status{
+    display:inline-flex;
+    padding:6px 9px;
+    border-radius:8px;
+    color:white;
+    font-size:12px;
+    font-weight:800;
+}
+
+.status.ok{background:var(--ok)}
+.status.warn{background:var(--warn)}
+.status.neutral{background:var(--neutral)}
+.muted{color:var(--muted)}
+
+@media(max-width:1100px){
+    .layout{grid-template-columns:1fr}
+    .sidebar{display:none}
+    .stats{grid-template-columns:repeat(2, minmax(0, 1fr))}
+    .grid{grid-template-columns:1fr}
+}
+
+@media(max-width:760px){
+    .main{padding:18px}
+    .stats{grid-template-columns:1fr}
+    .day-chart{grid-template-columns:repeat(7, minmax(28px, 1fr))}
+    .month-chart{grid-template-columns:repeat(3, minmax(56px, 1fr))}
+}
+</style>
+</head>
+
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="brand">VisionAI</div>
+        <h1>Lab</h1>
+        <nav class="nav">
+            <a href="/laboratorio">Dashboard</a>
+            <a class="active" href="/laboratorio/metricas">Métricas</a>
+            <a href="/laboratorio/calibracao">Calibração facial</a>
+        </nav>
+
+        <section class="sidebar-system">
+            <h2>Banco de dados</h2>
+            <span class="db-badge {{ '' if banco.persistente else 'warn' }}">
+                {{ banco.label }}
+            </span>
+            {% if not banco.persistente %}
+            <p class="muted">Atenção: este banco não é o PostgreSQL permanente.</p>
+            {% endif %}
+
+            <form class="wipe-form" method="post" action="/laboratorio/limpar-banco">
+                <input name="confirmacao" placeholder="LIMPAR BANCO" autocomplete="off" required>
+                <button type="submit">Limpar dados</button>
+            </form>
+        </section>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <h2>Métricas de gestão</h2>
+            <p>Acompanhe volume de atendimentos, medições concluídas, aprovações, casos para revisão e pacientes que ainda não finalizaram a medição.</p>
+        </header>
+
+        <section class="stats">
+            <div class="metric"><span>Medições hoje</span><strong>{{ stats.medicoes_hoje }}</strong><small>{{ stats.medicoes_semana }} na semana</small></div>
+            <div class="metric"><span>Medições no mês</span><strong>{{ stats.medicoes_mes }}</strong><small>{{ stats.total_medicoes }} no total</small></div>
+            <div class="metric"><span>Aprovadas</span><strong>{{ stats.aprovadas }}</strong><small>{{ stats.revisar }} para revisar</small></div>
+            <div class="metric"><span>Sem medição</span><strong>{{ stats.sem_medicao }}</strong><small>{{ stats.total_pacientes }} pacientes</small></div>
+            <div class="metric"><span>Score médio</span><strong>{{ stats.score_medio }}</strong><small>média das medições</small></div>
+            <div class="metric"><span>Pacientes</span><strong>{{ stats.total_pacientes }}</strong><small>cadastros no banco</small></div>
+            <div class="metric"><span>Medições</span><strong>{{ stats.total_medicoes }}</strong><small>capturas finalizadas</small></div>
+            <div class="metric"><span>Revisar</span><strong>{{ stats.revisar }}</strong><small>não aprovadas</small></div>
+        </section>
+
+        <section class="grid">
+            <div class="panel">
+                <h3>Medições e cadastros nos últimos 14 dias</h3>
+                <div class="legend">
+                    <span><i class="dot"></i>Medições</span>
+                    <span><i class="dot secondary"></i>Pacientes</span>
+                </div>
+                <div class="day-chart">
+                    {% for item in grafico_dias %}
+                    <div class="day">
+                        <div class="bars">
+                            <div class="bar" style="height:{{ item.altura_medicoes }}%"></div>
+                            <div class="bar secondary" style="height:{{ item.altura_pacientes }}%"></div>
+                        </div>
+                        <div class="chart-value">{{ item.medicoes }}/{{ item.pacientes }}</div>
+                        <div class="chart-label">{{ item.label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Status operacional</h3>
+                <div class="status-list">
+                    {% for item in status_barras %}
+                    <div class="status-row">
+                        <div class="status-top">
+                            <span>{{ item.nome }}</span>
+                            <strong>{{ item.valor }} | {{ item.percentual }}%</strong>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-fill {{ item.classe }}" style="width:{{ item.percentual }}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="panel">
+                <h3>Medições por mês</h3>
+                <div class="month-chart">
+                    {% for item in grafico_meses %}
+                    <div class="month">
+                        <div class="bars">
+                            <div class="bar month-bar" style="height:{{ item.altura }}%"></div>
+                        </div>
+                        <div class="chart-value">{{ item.valor }}</div>
+                        <div class="chart-label">{{ item.label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Resumo por período</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Período</th>
+                                <th>Pacientes</th>
+                                <th>Medições</th>
+                                <th>Aprov.</th>
+                                <th>Revisar</th>
+                                <th>Sem med.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in periodos %}
+                            <tr>
+                                <td><strong>{{ item.nome }}</strong></td>
+                                <td>{{ item.pacientes }}</td>
+                                <td>{{ item.medicoes }}</td>
+                                <td>{{ item.aprovadas }}</td>
+                                <td>{{ item.revisar }}</td>
+                                <td>{{ item.sem_medicao }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="panel">
+                <h3>Últimas medições</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ODS</th>
+                                <th>Paciente</th>
+                                <th>Data</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in ultimas_medicoes %}
+                            <tr>
+                                <td>{{ item.ods or "-" }}</td>
+                                <td>{{ item.nome or "-" }}</td>
+                                <td>{% if item.data_base %}{{ item.data_base.strftime("%d/%m/%Y") }}{% else %}-{% endif %}</td>
+                                <td>{% if item.score is not none %}{{ "%.1f"|format(item.score) }}{% else %}-{% endif %}</td>
+                                <td>
+                                    <span class="status {{ 'ok' if item.status_validacao == 'APROVADO' else 'warn' }}">
+                                        {{ item.status_validacao }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td class="muted" colspan="5">Nenhuma medição encontrada.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Pacientes sem medição</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Paciente</th>
+                                <th>Data</th>
+                                <th>Telefone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in sem_medicao_recentes %}
+                            <tr>
+                                <td>{{ item.nome or "-" }}</td>
+                                <td>{% if item.data_base %}{{ item.data_base.strftime("%d/%m/%Y") }}{% else %}-{% endif %}</td>
+                                <td>{{ item.telefone or "-" }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td class="muted" colspan="3">Nenhum paciente pendente.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

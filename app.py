@@ -10,7 +10,7 @@ import threading
 from pathlib import Path
 from urllib.parse import urlencode
 from database import conectar, database_config, inserir_retornando_id, is_postgres_connection, sql_medicoes_hoje
-from datetime import datetime
+from datetime import datetime, date, timedelta
 # ------------------------------
 # Imports de bibliotecas externas
 # ------------------------------
@@ -230,6 +230,60 @@ def recalcular_calibracao_facial(cursor):
 def redirect_laboratorio(**params):
     query = urlencode({chave: valor for chave, valor in params.items() if valor})
     return redirect(f"/laboratorio?{query}" if query else "/laboratorio")
+
+
+def parse_data_metricas(valor):
+    if not valor:
+        return None
+
+    if isinstance(valor, datetime):
+        return valor.date()
+
+    if isinstance(valor, date):
+        return valor
+
+    texto = str(valor).strip()
+    if not texto:
+        return None
+
+    texto = texto.replace("T", " ").replace("Z", "+00:00")
+
+    try:
+        return datetime.fromisoformat(texto).date()
+    except ValueError:
+        pass
+
+    for formato in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(texto[:26], formato).date()
+        except ValueError:
+            continue
+
+    return None
+
+
+def status_medicao(registro):
+    validacao = {}
+    if registro.get("validacao_json"):
+        try:
+            validacao = json.loads(registro["validacao_json"])
+        except json.JSONDecodeError:
+            validacao = {}
+
+    return validacao.get("status") or registro.get("status_validacao") or "PENDENTE"
+
+
+def percentual(valor, total):
+    if not total:
+        return 0
+    return round((valor / total) * 100, 1)
+
+
+def numero_metricas(valor):
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return None
 
 
 def registrar_paciente_no_csv(paciente):
@@ -630,6 +684,182 @@ def laboratorio():
             "revisar": revisar,
             "score_medio": round(score_medio, 1),
         }
+    )
+
+
+@app.route("/laboratorio/metricas")
+def laboratorio_metricas():
+    config_banco = database_config()
+    hoje = datetime.now().date()
+    inicio_semana = hoje - timedelta(days=hoje.weekday())
+    inicio_mes = hoje.replace(day=1)
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, nome, rg, telefone, sexo, data_exame
+        FROM pacientes
+        ORDER BY id DESC
+    """)
+    pacientes = [dict(p) for p in cursor.fetchall()]
+
+    cursor.execute("""
+        SELECT m.*, p.nome, p.rg, p.telefone, p.sexo, p.data_exame
+        FROM medicoes m
+        LEFT JOIN pacientes p ON p.id = m.paciente_id
+        ORDER BY COALESCE(m.data, '') DESC, m.id DESC
+    """)
+    medicoes = [dict(m) for m in cursor.fetchall()]
+    conn.close()
+
+    for paciente in pacientes:
+        paciente["data_base"] = parse_data_metricas(paciente.get("data_exame"))
+
+    for medicao in medicoes:
+        medicao["data_base"] = parse_data_metricas(medicao.get("data"))
+        medicao["status_validacao"] = status_medicao(medicao)
+
+    medidos = {m.get("paciente_id") for m in medicoes if m.get("paciente_id")}
+    pacientes_sem_medicao = [p for p in pacientes if p.get("id") not in medidos]
+
+    aprovadas = sum(1 for m in medicoes if m["status_validacao"] == "APROVADO")
+    revisar = sum(1 for m in medicoes if m["status_validacao"] != "APROVADO")
+    score_valores = [valor for valor in (numero_metricas(m.get("score")) for m in medicoes) if valor is not None]
+    score_medio = round(sum(score_valores) / len(score_valores), 1) if score_valores else 0
+
+    def no_periodo(registro, inicio=None, fim=None):
+        data_base = registro.get("data_base")
+        if not data_base:
+            return False
+        if inicio and data_base < inicio:
+            return False
+        if fim and data_base > fim:
+            return False
+        return True
+
+    periodos_config = [
+        ("Hoje", hoje, hoje),
+        ("Semana", inicio_semana, hoje),
+        ("Mês", inicio_mes, hoje),
+        ("Total", None, None),
+    ]
+
+    periodos = []
+    for nome, inicio, fim in periodos_config:
+        pacientes_periodo = [p for p in pacientes if no_periodo(p, inicio, fim)] if inicio else pacientes
+        medicoes_periodo = [m for m in medicoes if no_periodo(m, inicio, fim)] if inicio else medicoes
+        sem_medicao_periodo = [p for p in pacientes_sem_medicao if no_periodo(p, inicio, fim)] if inicio else pacientes_sem_medicao
+        aprovadas_periodo = sum(1 for m in medicoes_periodo if m["status_validacao"] == "APROVADO")
+        revisar_periodo = sum(1 for m in medicoes_periodo if m["status_validacao"] != "APROVADO")
+
+        periodos.append({
+            "nome": nome,
+            "pacientes": len(pacientes_periodo),
+            "medicoes": len(medicoes_periodo),
+            "aprovadas": aprovadas_periodo,
+            "revisar": revisar_periodo,
+            "sem_medicao": len(sem_medicao_periodo),
+        })
+
+    dias = [hoje - timedelta(days=indice) for indice in range(13, -1, -1)]
+    medicoes_por_dia = {dia: 0 for dia in dias}
+    pacientes_por_dia = {dia: 0 for dia in dias}
+
+    for medicao in medicoes:
+        if medicao.get("data_base") in medicoes_por_dia:
+            medicoes_por_dia[medicao["data_base"]] += 1
+
+    for paciente in pacientes:
+        if paciente.get("data_base") in pacientes_por_dia:
+            pacientes_por_dia[paciente["data_base"]] += 1
+
+    maior_dia = max([1] + list(medicoes_por_dia.values()) + list(pacientes_por_dia.values()))
+    grafico_dias = [
+        {
+            "label": dia.strftime("%d/%m"),
+            "medicoes": medicoes_por_dia[dia],
+            "pacientes": pacientes_por_dia[dia],
+            "altura_medicoes": max(4, percentual(medicoes_por_dia[dia], maior_dia)),
+            "altura_pacientes": max(4, percentual(pacientes_por_dia[dia], maior_dia)),
+        }
+        for dia in dias
+    ]
+
+    meses = []
+    ano, mes = hoje.year, hoje.month
+    for _ in range(6):
+        meses.append((ano, mes))
+        mes -= 1
+        if mes == 0:
+            mes = 12
+            ano -= 1
+    meses.reverse()
+
+    medicoes_por_mes = {f"{ano:04d}-{mes:02d}": 0 for ano, mes in meses}
+    for medicao in medicoes:
+        data_base = medicao.get("data_base")
+        if not data_base:
+            continue
+        chave = f"{data_base.year:04d}-{data_base.month:02d}"
+        if chave in medicoes_por_mes:
+            medicoes_por_mes[chave] += 1
+
+    maior_mes = max([1] + list(medicoes_por_mes.values()))
+    grafico_meses = [
+        {
+            "label": f"{mes:02d}/{ano}",
+            "valor": medicoes_por_mes[f"{ano:04d}-{mes:02d}"],
+            "altura": max(4, percentual(medicoes_por_mes[f"{ano:04d}-{mes:02d}"], maior_mes)),
+        }
+        for ano, mes in meses
+    ]
+
+    total_status = len(medicoes) + len(pacientes_sem_medicao)
+    status_barras = [
+        {
+            "nome": "Aprovadas",
+            "classe": "ok",
+            "valor": aprovadas,
+            "percentual": percentual(aprovadas, total_status),
+        },
+        {
+            "nome": "Revisar",
+            "classe": "warn",
+            "valor": revisar,
+            "percentual": percentual(revisar, total_status),
+        },
+        {
+            "nome": "Sem medição",
+            "classe": "neutral",
+            "valor": len(pacientes_sem_medicao),
+            "percentual": percentual(len(pacientes_sem_medicao), total_status),
+        },
+    ]
+
+    ultimas_medicoes = medicoes[:12]
+    sem_medicao_recentes = pacientes_sem_medicao[:12]
+
+    return render_template(
+        "laboratorio_metricas.html",
+        banco=config_banco,
+        stats={
+            "total_pacientes": len(pacientes),
+            "total_medicoes": len(medicoes),
+            "medicoes_hoje": periodos[0]["medicoes"],
+            "medicoes_semana": periodos[1]["medicoes"],
+            "medicoes_mes": periodos[2]["medicoes"],
+            "aprovadas": aprovadas,
+            "revisar": revisar,
+            "sem_medicao": len(pacientes_sem_medicao),
+            "score_medio": score_medio,
+        },
+        periodos=periodos,
+        grafico_dias=grafico_dias,
+        grafico_meses=grafico_meses,
+        status_barras=status_barras,
+        ultimas_medicoes=ultimas_medicoes,
+        sem_medicao_recentes=sem_medicao_recentes,
     )
 
 
