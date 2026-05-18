@@ -1755,6 +1755,11 @@ def dados():
         "confiavel": dados_medicao.get("confiavel", False),
         "distancia_cm": dados_medicao.get("distancia_cm"),
         "iris_px": dados_medicao.get("iris_px"),
+        "iris_ok": dados_medicao.get("iris_ok", False),
+        "olhos_ok": dados_medicao.get("olhos_ok", False),
+        "cabeca_ok": dados_medicao.get("cabeca_ok", False),
+        "centro_ok": dados_medicao.get("centro_ok", False),
+        "dist_ok": dados_medicao.get("dist_ok", False),
 
         # 🔥 INTELIGÊNCIA
         "faixa": faixa,

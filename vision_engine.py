@@ -37,8 +37,8 @@ IRIS_REAL_MM = _env_float("VISIONAI_IRIS_REAL_MM", 11.7)
 TARGET_DISTANCE_CM = _env_float("VISIONAI_TARGET_DISTANCE_CM", 40.0)
 MIN_MM_PER_PX = _env_float("VISIONAI_MIN_MM_PER_PX", 0.08)
 MAX_MM_PER_PX = _env_float("VISIONAI_MAX_MM_PER_PX", 0.80)
-CAPTURE_MIN_SCORE = _env_float("VISIONAI_CAPTURE_MIN_SCORE", 82.0)
-CAPTURE_RESET_SCORE = _env_float("VISIONAI_CAPTURE_RESET_SCORE", 65.0)
+CAPTURE_MIN_SCORE = _env_float("VISIONAI_CAPTURE_MIN_SCORE", 75.0)
+CAPTURE_RESET_SCORE = _env_float("VISIONAI_CAPTURE_RESET_SCORE", 55.0)
 MAX_DP_STD_MM = _env_float("VISIONAI_MAX_DP_STD_MM", 1.1)
 MIN_STABLE_FRAMES = int(_env_float("VISIONAI_MIN_STABLE_FRAMES", 4))
 MIN_STABLE_SECONDS = _env_float("VISIONAI_MIN_STABLE_SECONDS", 0.55)
@@ -352,18 +352,32 @@ def processar_frame(frame):
     # -----------------------------
     score = 0
 
-    olhos_ok = olho_aberto(lm, olho_esq, w, h) and olho_aberto(lm, olho_dir, w, h)
-    cabeca_ok = abs(angulo) < 4
-    centro_ok = abs(nx - w/2) < w * 0.08
+    iris_ok = iris_px >= 5 and dist_olhos_px >= max(20, w * 0.05)
+    olhos_ok = iris_ok or (olho_aberto(lm, olho_esq, w, h) and olho_aberto(lm, olho_dir, w, h))
+    cabeca_desvio = abs(angulo)
+    centro_desvio = abs(nx - w/2)
+    cabeca_ok = cabeca_desvio < 6
+    centro_ok = centro_desvio < w * 0.12
     if distancia_cm is not None:
         dist_ok = abs(distancia_cm - TARGET_DISTANCE_CM) <= 7
     else:
         dist_ok = 8 < iris_px < 90
 
-    if olhos_ok: score += 25
-    if cabeca_ok: score += 25
-    if centro_ok: score += 25
-    if dist_ok: score += 25
+    if olhos_ok:
+        score += 30
+
+    if cabeca_ok:
+        score += 25
+    elif cabeca_desvio < 10:
+        score += 15
+
+    if centro_ok:
+        score += 25
+    elif centro_desvio < w * 0.20:
+        score += 15
+
+    if dist_ok:
+        score += 20
 
     # -----------------------------
     # ESTABILIDADE (🔥 MELHORADO)
@@ -458,8 +472,8 @@ def processar_frame(frame):
     if capturado:
         instrucao = "Medição concluída"
     else:
-        if not olhos_ok:
-            instrucao = "Abra os olhos"
+        if not iris_ok:
+            instrucao = "Aproxime o rosto"
         elif not cabeca_ok:
             instrucao = "Endireite a cabeça"
         elif not dist_ok:
@@ -488,6 +502,11 @@ def processar_frame(frame):
     dados_medicao["confiavel"] = confiavel or capturado
     dados_medicao["distancia_cm"] = round(distancia_cm, 1) if distancia_cm is not None else None
     dados_medicao["iris_px"] = round(float(iris_px), 2)
+    dados_medicao["iris_ok"] = bool(iris_ok)
+    dados_medicao["olhos_ok"] = bool(olhos_ok)
+    dados_medicao["cabeca_ok"] = bool(cabeca_ok)
+    dados_medicao["centro_ok"] = bool(centro_ok)
+    dados_medicao["dist_ok"] = bool(dist_ok)
     dados_medicao["validacao"] = validacao
     dados_medicao["historico"] = historico_dp
 
