@@ -9,7 +9,7 @@ import base64
 import threading
 from pathlib import Path
 from urllib.parse import urlencode
-from database import conectar, inserir_retornando_id, is_postgres_connection, sql_medicoes_hoje
+from database import conectar, database_config, inserir_retornando_id, is_postgres_connection, sql_medicoes_hoje
 from datetime import datetime
 # ------------------------------
 # Imports de bibliotecas externas
@@ -157,6 +157,23 @@ def remover_arquivos_vinculados(caminhos):
                 arquivo.unlink()
         except OSError:
             debug_log("Nao foi possivel remover arquivo vinculado:", caminho)
+
+
+def limpar_csv_pacientes_medicoes():
+    with CSV_LOCK:
+        escrever_linhas_csv([])
+
+
+def remover_fotos_pacientes():
+    pasta_fotos = Path(BASE_DIR, "static", "fotos")
+    if not pasta_fotos.exists():
+        return
+
+    for arquivo in pasta_fotos.glob("paciente_*.jpg"):
+        try:
+            arquivo.unlink()
+        except OSError:
+            debug_log("Nao foi possivel remover foto:", arquivo)
 
 
 def recalcular_calibracao_facial(cursor):
@@ -335,7 +352,12 @@ def index():
 
 @app.route("/healthz")
 def healthz():
-    return {"status": "ok"}
+    config_banco = database_config()
+    return {
+        "status": "ok",
+        "database": config_banco["backend"],
+        "database_persistente": config_banco["persistente"],
+    }
 
 
 @app.route("/paciente")
@@ -437,6 +459,7 @@ def laboratorio():
     busca = (request.args.get("q") or "").strip()
     mensagem = request.args.get("msg")
     erro = request.args.get("erro")
+    config_banco = database_config()
 
     conn = get_db()
     cursor = conn.cursor()
@@ -556,6 +579,7 @@ def laboratorio():
         resultados=resultados[:80],
         recentes=medicoes_preparadas[:8],
         medicao=medicao_selecionada,
+        banco=config_banco,
         stats={
             "total_pacientes": total_pacientes,
             "total_medicoes": total_medicoes,
@@ -626,6 +650,64 @@ def laboratorio_excluir_paciente():
         conn.close()
         debug_log("Erro ao excluir paciente:", exc)
         return redirect_laboratorio(erro="Nao foi possivel excluir o paciente. Tente novamente.")
+
+
+@app.route("/laboratorio/limpar-banco", methods=["POST"])
+def laboratorio_limpar_banco():
+    confirmacao = (request.form.get("confirmacao") or "").strip()
+
+    if confirmacao != "LIMPAR BANCO":
+        return redirect_laboratorio(
+            erro="Para limpar todos os dados, digite LIMPAR BANCO exatamente."
+        )
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        if is_postgres_connection(conn):
+            cursor.execute("""
+                TRUNCATE TABLE
+                    calibracao_facial_amostras,
+                    calibracao_facial,
+                    medicoes,
+                    receitas,
+                    pedidos,
+                    pacientes
+                RESTART IDENTITY CASCADE
+            """)
+        else:
+            cursor.execute("DELETE FROM calibracao_facial_amostras")
+            cursor.execute("DELETE FROM calibracao_facial")
+            cursor.execute("DELETE FROM medicoes")
+            cursor.execute("DELETE FROM receitas")
+            cursor.execute("DELETE FROM pedidos")
+            cursor.execute("DELETE FROM pacientes")
+            cursor.execute("""
+                DELETE FROM sqlite_sequence
+                WHERE name IN (
+                    'calibracao_facial_amostras',
+                    'calibracao_facial',
+                    'medicoes',
+                    'receitas',
+                    'pedidos',
+                    'pacientes'
+                )
+            """)
+
+        conn.commit()
+        conn.close()
+
+        limpar_csv_pacientes_medicoes()
+        remover_fotos_pacientes()
+
+        return redirect_laboratorio(msg="Banco limpo. Pacientes, medicoes e calibracoes foram zerados.")
+
+    except Exception as exc:
+        conn.rollback()
+        conn.close()
+        debug_log("Erro ao limpar banco:", exc)
+        return redirect_laboratorio(erro="Nao foi possivel limpar o banco. Tente novamente.")
 
 
 @app.route("/laboratorio/calibracao", methods=["GET", "POST"])

@@ -316,6 +316,57 @@ th{
     cursor:pointer;
 }
 
+.system-panel{
+    margin-bottom:18px;
+    padding:14px;
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) minmax(260px, 420px);
+    gap:14px;
+    align-items:center;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+}
+
+.db-badge{
+    display:inline-flex;
+    width:max-content;
+    padding:7px 10px;
+    border-radius:8px;
+    color:white;
+    background:var(--ok);
+    font-weight:800;
+}
+
+.db-badge.warn{
+    background:var(--warn);
+}
+
+.wipe-form{
+    display:grid;
+    grid-template-columns:minmax(160px, 1fr) auto;
+    gap:10px;
+}
+
+.wipe-form input{
+    min-height:42px;
+    padding:0 12px;
+    border:1px solid #efc7cc;
+    border-radius:8px;
+    font-size:14px;
+}
+
+.wipe-form button{
+    min-height:42px;
+    padding:0 16px;
+    border:0;
+    border-radius:8px;
+    color:white;
+    background:var(--warn);
+    font-weight:800;
+    cursor:pointer;
+}
+
 .empty{
     padding:28px;
     color:var(--muted);
@@ -327,6 +378,7 @@ th{
     .sidebar{display:none}
     .stats{grid-template-columns:repeat(3, 1fr)}
     .detail{grid-template-columns:1fr}
+    .system-panel{grid-template-columns:1fr}
 }
 
 @media(max-width:760px){
@@ -336,6 +388,7 @@ th{
     .stats{grid-template-columns:repeat(2, 1fr)}
     .detail-grid{grid-template-columns:repeat(2, 1fr)}
     .danger-zone form{grid-template-columns:1fr}
+    .wipe-form{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -381,6 +434,22 @@ th{
         {% if erro %}
         <div class="alert warn">{{ erro }}</div>
         {% endif %}
+
+        <section class="system-panel">
+            <div>
+                <span class="db-badge {{ '' if banco.persistente else 'warn' }}">
+                    Banco: {{ banco.label }}
+                </span>
+                {% if not banco.persistente %}
+                <p class="muted">AtenÃ§Ã£o: este banco nÃ£o Ã© o PostgreSQL permanente.</p>
+                {% endif %}
+            </div>
+
+            <form class="wipe-form" method="post" action="/laboratorio/limpar-banco">
+                <input name="confirmacao" placeholder="Digite LIMPAR BANCO" autocomplete="off" required>
+                <button type="submit">Limpar banco</button>
+            </form>
+        </section>
 
         {% if medicao %}
         <section class="detail">

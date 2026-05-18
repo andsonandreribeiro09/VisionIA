@@ -18,6 +18,25 @@ def postgres_disponivel():
     return database_url.lower().startswith(POSTGRES_PREFIXES)
 
 
+def database_backend():
+    return "postgresql" if postgres_disponivel() else "sqlite"
+
+
+def database_config():
+    if postgres_disponivel():
+        return {
+            "backend": "postgresql",
+            "persistente": True,
+            "label": "PostgreSQL Render",
+        }
+
+    return {
+        "backend": "sqlite",
+        "persistente": False,
+        "label": "SQLite local",
+    }
+
+
 def is_postgres_connection(conn):
     return isinstance(conn, PostgresConnection)
 
