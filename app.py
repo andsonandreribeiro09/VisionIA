@@ -2122,13 +2122,27 @@ def salvar_lote():
 def process_frame():
     import numpy as np
 
-    data = request.json["image"]
+    payload = request.get_json(silent=True) or {}
+    data = payload.get("image")
+    if not data or "," not in data:
+        return jsonify({"status": "erro", "msg": "Frame invalido"}), 400
 
-    img_data = base64.b64decode(data.split(",")[1])
+    try:
+        img_data = base64.b64decode(data.split(",", 1)[1])
+    except (ValueError, TypeError, base64.binascii.Error):
+        return jsonify({"status": "erro", "msg": "Frame invalido"}), 400
+
     np_arr = np.frombuffer(img_data, np.uint8)
     frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-    processar_frame(frame)
+    if frame is None:
+        return jsonify({"status": "erro", "msg": "Frame invalido"}), 400
+
+    try:
+        processar_frame(frame)
+    except Exception as exc:
+        debug_log("ERRO PROCESS_FRAME:", exc)
+        return jsonify({"status": "erro", "msg": "Nao foi possivel processar o frame"}), 500
 
     return jsonify({
         "status": "ok",

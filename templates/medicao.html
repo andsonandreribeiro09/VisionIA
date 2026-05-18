@@ -555,18 +555,26 @@ let tempoInicio = null;
 let finalizado = false;
 let cameraStream = null;
 let processandoFrame = false;
+let medicoes = [];
 const videoEl = document.getElementById("video");
 const frameCanvas = document.createElement("canvas");
 const frameCtx = frameCanvas.getContext("2d");
-const FRAME_INTERVAL_MS = 180;
+const FRAME_INTERVAL_MS = 260;
 const DATA_INTERVAL_MS = 220;
-const CAPTURE_SCORE_MIN = 85;
-const CAPTURE_RESET_SCORE = 75;
-const CAPTURE_HOLD_MS = 700;
+const PROCESS_MAX_WIDTH = 640;
+const CAPTURE_SCORE_MIN = 82;
+const CAPTURE_RESET_SCORE = 65;
+const CAPTURE_HOLD_MS = 550;
+const TOTAL_CAPTURAS = 4;
+
+function numero(valor, fallback = 0){
+    const convertido = Number(valor);
+    return Number.isFinite(convertido) ? convertido : fallback;
+}
 
 async function iniciarCameraTablet(){
     try{
-        cameraStream = await navigator.mediaDevices.getUserMedia({
+        const cameraPreferida = {
             video: {
                 facingMode: "user",
                 width: { ideal: 1280 },
@@ -574,20 +582,41 @@ async function iniciarCameraTablet(){
                 frameRate: { ideal: 15, max: 15 }
             },
             audio: false
-        });
+        };
+
+        try{
+            cameraStream = await navigator.mediaDevices.getUserMedia(cameraPreferida);
+        }catch(erroCamera){
+            if(erroCamera && erroCamera.name === "NotAllowedError"){
+                throw erroCamera;
+            }
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user" },
+                audio: false
+            });
+        }
 
         videoEl.srcObject = cameraStream;
+        await new Promise(resolve => {
+            if(videoEl.readyState >= 1) return resolve();
+            videoEl.onloadedmetadata = resolve;
+        });
+        await videoEl.play();
         statusEl.innerText = "Camera iniciada";
         enviarFramesParaIA();
 
     }catch(e){
         console.error(e);
-        statusEl.innerText = "Permita o acesso a camera para medir";
+        statusEl.innerText = "Permita o acesso a camera e recarregue a tela";
     }
 }
 
 async function enviarFramesParaIA(){
-    if(finalizado || processandoFrame || videoEl.readyState < 2){
+    if(finalizado){
+        return;
+    }
+
+    if(processandoFrame || videoEl.readyState < 2 || !videoEl.videoWidth || !videoEl.videoHeight){
         setTimeout(enviarFramesParaIA, FRAME_INTERVAL_MS);
         return;
     }
@@ -595,18 +624,24 @@ async function enviarFramesParaIA(){
     processandoFrame = true;
 
     try{
-        frameCanvas.width = videoEl.videoWidth || 640;
-        frameCanvas.height = videoEl.videoHeight || 480;
+        const fator = Math.min(PROCESS_MAX_WIDTH / videoEl.videoWidth, 1);
+        frameCanvas.width = Math.round(videoEl.videoWidth * fator);
+        frameCanvas.height = Math.round(videoEl.videoHeight * fator);
         frameCtx.drawImage(videoEl, 0, 0, frameCanvas.width, frameCanvas.height);
 
-        await fetch("/process-frame", {
+        const resp = await fetch("/process-frame", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ image: frameCanvas.toDataURL("image/jpeg", 0.8) })
+            body: JSON.stringify({ image: frameCanvas.toDataURL("image/jpeg", 0.72) })
         });
+
+        if(!resp.ok){
+            throw new Error(`Falha ${resp.status} ao processar frame`);
+        }
 
     }catch(e){
         console.warn("Falha ao processar frame:", e);
+        instrucaoEl.innerText = "Reconectando leitura...";
 
     }finally{
         processandoFrame = false;
@@ -627,12 +662,15 @@ let loopIA = setInterval(async () => {
         const resp = await fetch(`/dados?paciente_id=${paciente_id}`);
         const data = await resp.json();
 
-        dpEl.innerText = data.dp.toFixed(1);
-        dnp_eEl.innerText = data.dnp_e.toFixed(1);
-        dnp_dEl.innerText = data.dnp_d.toFixed(1);
-        scoreEl.innerText = data.score.toFixed(0);
+        const dp = numero(data.dp);
+        const dnpE = numero(data.dnp_e);
+        const dnpD = numero(data.dnp_d);
+        const score = numero(data.score);
 
-        const score = data.score;
+        dpEl.innerText = dp.toFixed(1);
+        dnp_eEl.innerText = dnpE.toFixed(1);
+        dnp_dEl.innerText = dnpD.toFixed(1);
+        scoreEl.innerText = score.toFixed(0);
 
         const distanciaTexto = data.distancia_cm ? `\nDistancia: ${data.distancia_cm} cm` : "";
         const estabilidadeTexto = data.confiavel ? "Estavel" : "Estabilizando";
@@ -641,8 +679,8 @@ let loopIA = setInterval(async () => {
         statusEl.innerText = `
         ${data.sexo} | ${data.idade ?? "-"} anos
         Faixa: ${data.faixa}
-        DP: ${data.dp.toFixed(1)} mm (ideal ${data.dp_min}-${data.dp_max})${distanciaTexto}
-        Score: ${score}% | ${estabilidadeTexto}
+        DP: ${dp.toFixed(1)} mm (ideal ${data.dp_min}-${data.dp_max})${distanciaTexto}
+        Score: ${score.toFixed(0)}% | ${estabilidadeTexto}
         Capturas: ${medicoes.length}/${TOTAL_CAPTURAS}
         `;
 
@@ -665,7 +703,9 @@ let loopIA = setInterval(async () => {
         // =========================
         // FEEDBACK VISUAL
         // =========================
-        if(data.confiavel && score >= CAPTURE_SCORE_MIN){
+        const leituraBoa = (data.confiavel || data.capturado) && score >= CAPTURE_SCORE_MIN && dp > 0 && dnpE > 0 && dnpD > 0;
+
+        if(leituraBoa){
             faceGuide.style.borderColor = "lime";
             instrucaoEl.innerText = "Perfeito! Nao se mova...";
         } 
@@ -681,7 +721,7 @@ let loopIA = setInterval(async () => {
         // =========================
         // AUTO CAPTURA INTELIGENTE
         // =========================
-        if(data.confiavel && score >= CAPTURE_SCORE_MIN){
+        if(leituraBoa){
 
             // inicia contagem
             if(!capturando){
@@ -710,7 +750,7 @@ let loopIA = setInterval(async () => {
                 }
             }
 
-        } else if(score < CAPTURE_RESET_SCORE || !data.confiavel) {
+        } else if(score < CAPTURE_RESET_SCORE || (!data.confiavel && !data.capturado)) {
             capturando = false;
             tempoInicio = null;
             progressBar.style.width = "0%";
@@ -721,13 +761,6 @@ let loopIA = setInterval(async () => {
     }
 
 }, DATA_INTERVAL_MS);
-
-
-// =========================
-// CONFIG NOVA
-// =========================
-let medicoes = [];
-const TOTAL_CAPTURAS = 4;
 
 
 // =========================
