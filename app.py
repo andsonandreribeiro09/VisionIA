@@ -19,7 +19,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from vision_engine import processar_frame, dados_medicao, resetar_medicao
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from flask import Flask, render_template, Response, request, redirect, jsonify, session, send_file
+from flask import Flask, render_template, Response, request, redirect, jsonify, session, send_file, url_for
 
 
 
@@ -329,6 +329,7 @@ def fator_calibracao_valido(fator):
 
 @app.route("/")
 def index():
+    session.pop("paciente_id", None)
     return render_template("index.html")
 
 
@@ -340,6 +341,11 @@ def healthz():
 @app.route("/paciente")
 def paciente():
     return render_template("paciente.html")
+
+
+@app.route("/cadastro")
+def cadastro():
+    return redirect(url_for("paciente"))
 
 
 @app.route("/pacientes")
@@ -899,8 +905,13 @@ def armacao():
 
 
 @app.route('/medicao')
-def medicao():
-    paciente_id = request.args.get('paciente_id')
+@app.route('/medicao/<int:paciente_id>')
+def medicao(paciente_id=None):
+    paciente_id = paciente_id or request.args.get('paciente_id', type=int) or session.get("paciente_id")
+
+    if not paciente_id:
+        return redirect(url_for("paciente"))
+
     resetar_medicao()
 
     conn = get_db()
@@ -909,10 +920,17 @@ def medicao():
     cursor.execute("SELECT nome FROM pacientes WHERE id = ?", (paciente_id,))
     paciente = cursor.fetchone()
 
+    if not paciente:
+        conn.close()
+        session.pop("paciente_id", None)
+        return redirect(url_for("paciente"))
+
     cursor.execute("SELECT * FROM armacoes")
     armacoes = cursor.fetchall()
 
     conn.close()
+
+    session["paciente_id"] = paciente_id
 
     return render_template("medicao.html",
                            armacoes=armacoes,
@@ -1140,7 +1158,7 @@ def salvar_paciente():
             "data_exame": data_exame,
         })
 
-        return redirect(f"/medicao?paciente_id={paciente_id}")
+        return redirect(url_for("medicao", paciente_id=paciente_id))
 
     except Exception as e:
         return f"Erro ao salvar paciente: {str(e)}"
