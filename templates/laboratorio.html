@@ -289,6 +289,7 @@ th{
         <h1>Lab</h1>
         <nav class="nav">
             <a class="active" href="/laboratorio">Dashboard</a>
+            <a href="/laboratorio/calibracao">Calibração facial</a>
             <a href="/pacientes">Pacientes</a>
             <a href="/dashboard">Painel antigo</a>
         </nav>
@@ -328,6 +329,9 @@ th{
                     <div class="detail-field"><span>DNP E</span><strong>{{ "%.2f"|format(medicao.dnp_e or 0) }}</strong></div>
                     <div class="detail-field"><span>DNP D</span><strong>{{ "%.2f"|format(medicao.dnp_d or 0) }}</strong></div>
                     <div class="detail-field"><span>Score</span><strong>{{ "%.1f"|format(medicao.score or 0) }}</strong></div>
+                    <div class="detail-field"><span>DP câmera</span><strong>{{ "%.2f"|format(medicao.dp_original or medicao.dp or 0) }}</strong></div>
+                    <div class="detail-field"><span>DNP E câmera</span><strong>{{ "%.2f"|format(medicao.dnp_e_original or medicao.dnp_e or 0) }}</strong></div>
+                    <div class="detail-field"><span>DNP D câmera</span><strong>{{ "%.2f"|format(medicao.dnp_d_original or medicao.dnp_d or 0) }}</strong></div>
                     <div class="detail-field"><span>Status</span><strong>{{ medicao.status_validacao }}</strong></div>
                     <div class="detail-field"><span>Erro máx.</span><strong>{{ medicao.erro_max or "-" }}</strong></div>
                     <div class="detail-field"><span>Telefone</span><strong>{{ medicao.telefone or "-" }}</strong></div>

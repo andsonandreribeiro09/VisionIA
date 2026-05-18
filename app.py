@@ -185,6 +185,64 @@ def gerar_ods(cursor):
             return ods
         proximo += 1
 
+
+def calcular_idade_por_data(data_nascimento):
+    if not data_nascimento:
+        return None
+
+    try:
+        nascimento = datetime.strptime(data_nascimento, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return None
+
+    hoje = datetime.now()
+    idade = hoje.year - nascimento.year
+    if (hoje.month, hoje.day) < (nascimento.month, nascimento.day):
+        idade -= 1
+    return idade
+
+
+def perfil_calibracao_paciente(paciente):
+    sexo = ((paciente or {}).get("sexo") or "outro").lower().strip()
+    idade = (paciente or {}).get("idade")
+
+    if idade is None:
+        idade = calcular_idade_por_data((paciente or {}).get("data_nascimento"))
+
+    faixa = "crianca" if idade is not None and idade < 18 else "adulto"
+    return sexo, faixa
+
+
+def obter_calibracao_facial(cursor, sexo, faixa):
+    cursor.execute("""
+        SELECT *
+        FROM calibracao_facial
+        WHERE sexo=? AND faixa=?
+        LIMIT 1
+    """, (sexo, faixa))
+    calibracao = cursor.fetchone()
+
+    if not calibracao:
+        return {
+            "sexo": sexo,
+            "faixa": faixa,
+            "fator_dp": 1.0,
+            "fator_dnp_e": 1.0,
+            "fator_dnp_d": 1.0,
+            "amostras": 0,
+            "erro_medio": 0,
+        }
+
+    return calibracao
+
+
+def aplicar_calibracao_valor(valor, fator):
+    return round(float(valor or 0) * float(fator or 1), 2)
+
+
+def fator_calibracao_valido(fator):
+    return 0.70 <= fator <= 1.30
+
 # -----------------------------
 # ROTAS
 # -----------------------------
@@ -372,6 +430,171 @@ def laboratorio():
             "revisar": revisar,
             "score_medio": round(score_medio, 1),
         }
+    )
+
+
+@app.route("/laboratorio/calibracao", methods=["GET", "POST"])
+def laboratorio_calibracao():
+    mensagem = None
+    erro = None
+    busca = (request.values.get("ods") or "").strip()
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        try:
+            dp_real = float(request.form.get("dp_real", 0) or 0)
+            dnp_e_real = float(request.form.get("dnp_e_real", 0) or 0)
+            dnp_d_real = float(request.form.get("dnp_d_real", 0) or 0)
+
+            cursor.execute("""
+                SELECT m.*, p.nome, p.sexo, p.idade, p.data_nascimento
+                FROM medicoes m
+                LEFT JOIN pacientes p ON p.id = m.paciente_id
+                WHERE m.ods=?
+                LIMIT 1
+            """, (busca,))
+            medicao_post = cursor.fetchone()
+
+            if not medicao_post:
+                erro = "ODS nao encontrado."
+            else:
+                dp_camera = float(medicao_post.get("dp_original") or medicao_post.get("dp") or 0)
+                dnp_e_camera = float(medicao_post.get("dnp_e_original") or medicao_post.get("dnp_e") or 0)
+                dnp_d_camera = float(medicao_post.get("dnp_d_original") or medicao_post.get("dnp_d") or 0)
+
+                if min(dp_real, dnp_e_real, dnp_d_real, dp_camera, dnp_e_camera, dnp_d_camera) <= 0:
+                    erro = "Preencha medidas reais validas para DP, DNP E e DNP D."
+                else:
+                    fator_dp = dp_real / dp_camera
+                    fator_dnp_e = dnp_e_real / dnp_e_camera
+                    fator_dnp_d = dnp_d_real / dnp_d_camera
+
+                    if not all(fator_calibracao_valido(f) for f in [fator_dp, fator_dnp_e, fator_dnp_d]):
+                        erro = "A diferenca ficou muito alta. Confira o ODS e as medidas reais."
+                    else:
+                        sexo, faixa = perfil_calibracao_paciente(medicao_post)
+                        atual = obter_calibracao_facial(cursor, sexo, faixa)
+                        amostras = int(atual.get("amostras") or 0)
+                        novo_total = amostras + 1
+
+                        novo_fator_dp = ((float(atual.get("fator_dp") or 1) * amostras) + fator_dp) / novo_total
+                        novo_fator_dnp_e = ((float(atual.get("fator_dnp_e") or 1) * amostras) + fator_dnp_e) / novo_total
+                        novo_fator_dnp_d = ((float(atual.get("fator_dnp_d") or 1) * amostras) + fator_dnp_d) / novo_total
+
+                        erro_dp = abs(dp_real - (dp_camera * novo_fator_dp))
+                        erro_dnp_e = abs(dnp_e_real - (dnp_e_camera * novo_fator_dnp_e))
+                        erro_dnp_d = abs(dnp_d_real - (dnp_d_camera * novo_fator_dnp_d))
+                        erro_medio = round((erro_dp + erro_dnp_e + erro_dnp_d) / 3, 3)
+
+                        cursor.execute("""
+                            INSERT INTO calibracao_facial
+                            (sexo, faixa, fator_dp, fator_dnp_e, fator_dnp_d, amostras, erro_medio, atualizado_em)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                            ON CONFLICT(sexo, faixa) DO UPDATE SET
+                                fator_dp=excluded.fator_dp,
+                                fator_dnp_e=excluded.fator_dnp_e,
+                                fator_dnp_d=excluded.fator_dnp_d,
+                                amostras=excluded.amostras,
+                                erro_medio=excluded.erro_medio,
+                                atualizado_em=datetime('now')
+                        """, (
+                            sexo,
+                            faixa,
+                            novo_fator_dp,
+                            novo_fator_dnp_e,
+                            novo_fator_dnp_d,
+                            novo_total,
+                            erro_medio,
+                        ))
+
+                        cursor.execute("""
+                            INSERT INTO calibracao_facial_amostras
+                            (medicao_id, ods, paciente_id, sexo, faixa,
+                             dp_camera, dnp_e_camera, dnp_d_camera,
+                             dp_real, dnp_e_real, dnp_d_real,
+                             fator_dp, fator_dnp_e, fator_dnp_d,
+                             erro_dp, erro_dnp_e, erro_dnp_d)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            medicao_post.get("id"),
+                            medicao_post.get("ods"),
+                            medicao_post.get("paciente_id"),
+                            sexo,
+                            faixa,
+                            dp_camera,
+                            dnp_e_camera,
+                            dnp_d_camera,
+                            dp_real,
+                            dnp_e_real,
+                            dnp_d_real,
+                            fator_dp,
+                            fator_dnp_e,
+                            fator_dnp_d,
+                            erro_dp,
+                            erro_dnp_e,
+                            erro_dnp_d,
+                        ))
+
+                        cursor.execute("""
+                            UPDATE medicoes
+                            SET calibracao_json=?
+                            WHERE id=?
+                        """, (
+                            json.dumps({
+                                "usada_como_amostra": True,
+                                "dp_real": dp_real,
+                                "dnp_e_real": dnp_e_real,
+                                "dnp_d_real": dnp_d_real,
+                                "sexo": sexo,
+                                "faixa": faixa,
+                            }, ensure_ascii=False),
+                            medicao_post.get("id"),
+                        ))
+
+                        conn.commit()
+                        mensagem = f"Calibracao atualizada para {sexo} / {faixa} com {novo_total} amostra(s)."
+
+        except ValueError:
+            erro = "Digite apenas numeros nas medidas reais."
+
+    medicao = None
+    if busca:
+        cursor.execute("""
+            SELECT m.*, p.nome, p.rg, p.sexo, p.idade, p.data_nascimento
+            FROM medicoes m
+            LEFT JOIN pacientes p ON p.id = m.paciente_id
+            WHERE m.ods=?
+            LIMIT 1
+        """, (busca,))
+        medicao = cursor.fetchone()
+
+    cursor.execute("""
+        SELECT *
+        FROM calibracao_facial
+        ORDER BY faixa, sexo
+    """)
+    calibracoes = cursor.fetchall()
+
+    cursor.execute("""
+        SELECT *
+        FROM calibracao_facial_amostras
+        ORDER BY id DESC
+        LIMIT 20
+    """)
+    amostras = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "laboratorio_calibracao.html",
+        busca=busca,
+        medicao=medicao,
+        calibracoes=calibracoes,
+        amostras=amostras,
+        mensagem=mensagem,
+        erro=erro,
     )
 
 
@@ -1243,6 +1466,27 @@ def salvar_lote():
     desvio = float(np.std(dps))
     erro_max = float(max([abs(x - media) for x in dps]))
 
+    cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
+    paciente_calibracao = cursor.fetchone()
+    sexo_calibracao, faixa_calibracao = perfil_calibracao_paciente(paciente_calibracao)
+    calibracao = obter_calibracao_facial(cursor, sexo_calibracao, faixa_calibracao)
+
+    dp_final = aplicar_calibracao_valor(media, calibracao.get("fator_dp"))
+    dnp_e_final = aplicar_calibracao_valor(dnp_e_media, calibracao.get("fator_dnp_e"))
+    dnp_d_final = aplicar_calibracao_valor(dnp_d_media, calibracao.get("fator_dnp_d"))
+
+    calibracao_aplicada = {
+        "sexo": sexo_calibracao,
+        "faixa": faixa_calibracao,
+        "amostras": calibracao.get("amostras", 0),
+        "fator_dp": round(float(calibracao.get("fator_dp") or 1), 5),
+        "fator_dnp_e": round(float(calibracao.get("fator_dnp_e") or 1), 5),
+        "fator_dnp_d": round(float(calibracao.get("fator_dnp_d") or 1), 5),
+        "dp_original": round(media, 2),
+        "dnp_e_original": round(dnp_e_media, 2),
+        "dnp_d_original": round(dnp_d_media, 2),
+    }
+
     status = "APROVADO" if erro_max <= 2 else "REPROVADO"
 
     validacao = {
@@ -1259,18 +1503,24 @@ def salvar_lote():
 
     cursor.execute("""
         INSERT INTO medicoes 
-        (paciente_id, ods, dp, dnp_e, dnp_d, score, caminho_imagem, validacao_json, historico_json, data)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        (paciente_id, ods, dp, dnp_e, dnp_d, score,
+         caminho_imagem, validacao_json, historico_json,
+         dp_original, dnp_e_original, dnp_d_original, calibracao_json, data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     """, (
         paciente_id,
         ods,
-        round(media, 2),  # 🔥 usa média
-        round(dnp_e_media, 2),
-        round(dnp_d_media, 2),
+        dp_final,
+        dnp_e_final,
+        dnp_d_final,
         round(score_medio, 2),
         caminho_final,
         json.dumps(validacao),
-        json.dumps(dps)
+        json.dumps(dps),
+        round(media, 2),
+        round(dnp_e_media, 2),
+        round(dnp_d_media, 2),
+        json.dumps(calibracao_aplicada, ensure_ascii=False)
     ))
 
     # =========================
@@ -1286,9 +1536,9 @@ def salvar_lote():
     registrar_medicao_no_csv(paciente_id, {
         "ods": ods,
         "medicao_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "dp": round(media, 2),
-        "dnp_e": round(dnp_e_media, 2),
-        "dnp_d": round(dnp_d_media, 2),
+        "dp": dp_final,
+        "dnp_e": dnp_e_final,
+        "dnp_d": dnp_d_final,
         "score": round(score_medio, 2),
         "status_validacao": status,
         "validacao_json": json.dumps(validacao, ensure_ascii=False),
@@ -1301,9 +1551,13 @@ def salvar_lote():
     return {
         "status": "ok",
         "ods": ods,
-        "dp_medio": round(media, 2),
-        "dnp_e_media": round(dnp_e_media, 2),
-        "dnp_d_media": round(dnp_d_media, 2),
+        "dp_medio": dp_final,
+        "dnp_e_media": dnp_e_final,
+        "dnp_d_media": dnp_d_final,
+        "dp_original": round(media, 2),
+        "dnp_e_original": round(dnp_e_media, 2),
+        "dnp_d_original": round(dnp_d_media, 2),
+        "calibracao": calibracao_aplicada,
         "desvio": round(desvio, 2),
         "erro_max": round(erro_max, 2),
         "status_validacao": status

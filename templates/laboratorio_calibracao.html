@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionAI Lab • Calibração Facial</title>
+
+<style>
+:root{
+    --bg:#f4f1ea;
+    --paper:#fff;
+    --ink:#182226;
+    --muted:#687579;
+    --line:#ddd6ca;
+    --brand:#008b9a;
+    --ok:#147a43;
+    --warn:#9b2c3a;
+}
+
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    min-height:100vh;
+    font-family:"Segoe UI", system-ui, sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+}
+
+.layout{
+    min-height:100vh;
+    display:grid;
+    grid-template-columns:240px minmax(0, 1fr);
+}
+
+.sidebar{
+    padding:26px 22px;
+    background:#fff;
+    border-right:1px solid var(--line);
+}
+
+.brand{
+    font-size:13px;
+    font-weight:800;
+    color:var(--brand);
+    text-transform:uppercase;
+}
+
+.sidebar h1{
+    margin:8px 0 30px;
+    font-size:26px;
+    line-height:1;
+}
+
+.nav a{
+    display:block;
+    padding:12px 14px;
+    margin-bottom:8px;
+    border-radius:8px;
+    color:var(--ink);
+    text-decoration:none;
+    font-weight:700;
+}
+
+.nav a.active{
+    background:var(--brand);
+    color:white;
+}
+
+.main{
+    padding:28px;
+}
+
+.topbar{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:20px;
+    margin-bottom:22px;
+}
+
+.topbar h2{
+    margin:0;
+    font-size:30px;
+}
+
+.topbar p{
+    margin:6px 0 0;
+    color:var(--muted);
+    font-weight:600;
+}
+
+.search{
+    display:flex;
+    gap:10px;
+    width:min(520px, 100%);
+}
+
+input{
+    min-height:46px;
+    padding:0 14px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:15px;
+}
+
+.search input{
+    flex:1;
+}
+
+button{
+    min-height:46px;
+    padding:0 20px;
+    border:0;
+    border-radius:8px;
+    background:var(--brand);
+    color:white;
+    font-weight:800;
+    cursor:pointer;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) 360px;
+    gap:16px;
+    align-items:start;
+}
+
+.panel{
+    padding:18px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+}
+
+.panel h3{
+    margin:0 0 14px;
+    font-size:22px;
+}
+
+.ods{
+    display:inline-flex;
+    padding:7px 10px;
+    border-radius:8px;
+    background:#e8f7f9;
+    color:#006b78;
+    font-weight:800;
+}
+
+.fields{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:10px;
+}
+
+.field{
+    display:grid;
+    gap:6px;
+}
+
+.field label{
+    color:var(--muted);
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+
+.measure-grid{
+    margin:14px 0;
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:10px;
+}
+
+.measure{
+    padding:12px;
+    border:1px solid #eee8dd;
+    border-radius:8px;
+}
+
+.measure span{
+    display:block;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:800;
+}
+
+.measure strong{
+    display:block;
+    margin-top:6px;
+    font-size:22px;
+}
+
+.alert{
+    margin-bottom:14px;
+    padding:12px 14px;
+    border-radius:8px;
+    font-weight:700;
+}
+
+.alert.ok{
+    color:#0d512c;
+    background:#def4e8;
+}
+
+.alert.warn{
+    color:#6d1620;
+    background:#f8dbe0;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+}
+
+th,
+td{
+    padding:12px;
+    border-bottom:1px solid #eee8dd;
+    text-align:left;
+    font-size:14px;
+}
+
+th{
+    color:var(--muted);
+    background:#faf8f3;
+    font-size:12px;
+    text-transform:uppercase;
+}
+
+.muted{color:var(--muted)}
+
+@media(max-width:1050px){
+    .layout{grid-template-columns:1fr}
+    .sidebar{display:none}
+    .grid{grid-template-columns:1fr}
+}
+
+@media(max-width:720px){
+    .main{padding:18px}
+    .topbar{display:block}
+    .search{margin-top:16px}
+    .fields,
+    .measure-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="brand">VisionAI</div>
+        <h1>Lab</h1>
+        <nav class="nav">
+            <a href="/laboratorio">Dashboard</a>
+            <a class="active" href="/laboratorio/calibracao">Calibração facial</a>
+            <a href="/pacientes">Pacientes</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div>
+                <h2>Calibração facial</h2>
+                <p>Use poucas amostras auditadas para ensinar fatores por perfil. A medição diária continua automática.</p>
+            </div>
+
+            <form class="search" method="get" action="/laboratorio/calibracao">
+                <input name="ods" value="{{ busca }}" placeholder="Digite o ODS da amostra">
+                <button type="submit">Localizar</button>
+            </form>
+        </header>
+
+        {% if mensagem %}
+        <div class="alert ok">{{ mensagem }}</div>
+        {% endif %}
+
+        {% if erro %}
+        <div class="alert warn">{{ erro }}</div>
+        {% endif %}
+
+        <section class="grid">
+            <div class="panel">
+                <h3>Amostra por ODS</h3>
+
+                {% if medicao %}
+                <span class="ods">{{ medicao.ods }}</span>
+                <p><strong>{{ medicao.nome or "Paciente" }}</strong> <span class="muted">| {{ medicao.sexo or "sexo indefinido" }}</span></p>
+
+                <div class="measure-grid">
+                    <div class="measure"><span>DP câmera</span><strong>{{ "%.2f"|format(medicao.dp_original or medicao.dp or 0) }}</strong></div>
+                    <div class="measure"><span>DNP E câmera</span><strong>{{ "%.2f"|format(medicao.dnp_e_original or medicao.dnp_e or 0) }}</strong></div>
+                    <div class="measure"><span>DNP D câmera</span><strong>{{ "%.2f"|format(medicao.dnp_d_original or medicao.dnp_d or 0) }}</strong></div>
+                </div>
+
+                <form method="post" action="/laboratorio/calibracao">
+                    <input type="hidden" name="ods" value="{{ medicao.ods }}">
+                    <div class="fields">
+                        <div class="field">
+                            <label>DP real</label>
+                            <input name="dp_real" inputmode="decimal" placeholder="Ex: 63.0" required>
+                        </div>
+                        <div class="field">
+                            <label>DNP E real</label>
+                            <input name="dnp_e_real" inputmode="decimal" placeholder="Ex: 31.5" required>
+                        </div>
+                        <div class="field">
+                            <label>DNP D real</label>
+                            <input name="dnp_d_real" inputmode="decimal" placeholder="Ex: 31.5" required>
+                        </div>
+                    </div>
+                    <p class="muted">Use apenas amostras conferidas. O fator será aplicado nas próximas medições do mesmo perfil.</p>
+                    <button type="submit">Salvar calibração</button>
+                </form>
+                {% elif busca %}
+                <p class="muted">Nenhuma medição encontrada para este ODS.</p>
+                {% else %}
+                <p class="muted">Digite um ODS para localizar uma medição e inserir os valores reais da amostra.</p>
+                {% endif %}
+            </div>
+
+            <div class="panel">
+                <h3>Fatores ativos</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Perfil</th>
+                            <th>DP</th>
+                            <th>Amostras</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in calibracoes %}
+                        <tr>
+                            <td>{{ item.faixa }} {{ item.sexo }}</td>
+                            <td>{{ "%.4f"|format(item.fator_dp or 1) }}</td>
+                            <td>{{ item.amostras }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="muted">Ainda sem calibrações.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel" style="margin-top:16px">
+            <h3>Últimas amostras</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ODS</th>
+                        <th>Perfil</th>
+                        <th>DP câmera</th>
+                        <th>DP real</th>
+                        <th>Fator DP</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in amostras %}
+                    <tr>
+                        <td><a class="ods" href="/laboratorio/calibracao?ods={{ item.ods }}">{{ item.ods }}</a></td>
+                        <td>{{ item.faixa }} {{ item.sexo }}</td>
+                        <td>{{ "%.2f"|format(item.dp_camera or 0) }}</td>
+                        <td>{{ "%.2f"|format(item.dp_real or 0) }}</td>
+                        <td>{{ "%.4f"|format(item.fator_dp or 1) }}</td>
+                        <td>{{ item.criado_em }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="muted">Nenhuma amostra registrada.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</div>
+</body>
+</html>

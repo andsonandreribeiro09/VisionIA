@@ -93,6 +93,45 @@ def conectar():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS calibracao_facial(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sexo TEXT NOT NULL,
+        faixa TEXT NOT NULL,
+        fator_dp REAL DEFAULT 1,
+        fator_dnp_e REAL DEFAULT 1,
+        fator_dnp_d REAL DEFAULT 1,
+        amostras INTEGER DEFAULT 0,
+        erro_medio REAL DEFAULT 0,
+        atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(sexo, faixa)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS calibracao_facial_amostras(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        medicao_id INTEGER,
+        ods TEXT,
+        paciente_id INTEGER,
+        sexo TEXT,
+        faixa TEXT,
+        dp_camera REAL,
+        dnp_e_camera REAL,
+        dnp_d_camera REAL,
+        dp_real REAL,
+        dnp_e_real REAL,
+        dnp_d_real REAL,
+        fator_dp REAL,
+        fator_dnp_e REAL,
+        fator_dnp_d REAL,
+        erro_dp REAL,
+        erro_dnp_e REAL,
+        erro_dnp_d REAL,
+        criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     # =====================================================
     # 🔄 MIGRAÇÕES SEGURAS
     # =====================================================
@@ -137,6 +176,18 @@ def conectar():
 
     if "ods" not in colunas:
         cursor.execute("ALTER TABLE medicoes ADD COLUMN ods TEXT")
+
+    if "dp_original" not in colunas:
+        cursor.execute("ALTER TABLE medicoes ADD COLUMN dp_original REAL")
+
+    if "dnp_e_original" not in colunas:
+        cursor.execute("ALTER TABLE medicoes ADD COLUMN dnp_e_original REAL")
+
+    if "dnp_d_original" not in colunas:
+        cursor.execute("ALTER TABLE medicoes ADD COLUMN dnp_d_original REAL")
+
+    if "calibracao_json" not in colunas:
+        cursor.execute("ALTER TABLE medicoes ADD COLUMN calibracao_json TEXT")
 
     cursor.execute("""
         SELECT id, data
