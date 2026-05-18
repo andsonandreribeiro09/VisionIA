@@ -118,7 +118,7 @@ body{
 
 .stats{
     display:grid;
-    grid-template-columns:repeat(6, minmax(120px, 1fr));
+    grid-template-columns:repeat(7, minmax(110px, 1fr));
     gap:12px;
     margin-bottom:22px;
 }
@@ -257,6 +257,7 @@ th{
 
 .status.ok{background:var(--ok)}
 .status.warn{background:var(--warn)}
+.status.neutral{background:#647176}
 .muted{color:var(--muted)}
 
 .alert{
@@ -367,6 +368,7 @@ th{
             <div class="metric"><span>Pacientes</span><strong>{{ stats.total_pacientes }}</strong></div>
             <div class="metric"><span>Medições</span><strong>{{ stats.total_medicoes }}</strong></div>
             <div class="metric"><span>Hoje</span><strong>{{ stats.medicoes_hoje }}</strong></div>
+            <div class="metric"><span>Sem medição</span><strong>{{ stats.pacientes_sem_medicao }}</strong></div>
             <div class="metric"><span>Aprovadas</span><strong>{{ stats.aprovadas }}</strong></div>
             <div class="metric"><span>Revisar</span><strong>{{ stats.revisar }}</strong></div>
             <div class="metric"><span>Score médio</span><strong>{{ stats.score_medio }}</strong></div>
@@ -385,9 +387,10 @@ th{
             <div class="detail-main">
                 <span class="ods">{{ medicao.ods or "Sem ODS" }}</span>
                 <h3>{{ medicao.nome or "Paciente sem nome" }}</h3>
-                <p class="muted">RG {{ medicao.rg or "-" }} | {{ medicao.data or "-" }}</p>
+                <p class="muted">RG {{ medicao.rg or "-" }} | {{ medicao.data or medicao.data_exame or "-" }}</p>
 
                 <div class="detail-grid">
+                    {% if medicao.tem_medicao %}
                     <div class="detail-field"><span>DP</span><strong>{{ "%.2f"|format(medicao.dp or 0) }}</strong></div>
                     <div class="detail-field"><span>DNP E</span><strong>{{ "%.2f"|format(medicao.dnp_e or 0) }}</strong></div>
                     <div class="detail-field"><span>DNP D</span><strong>{{ "%.2f"|format(medicao.dnp_d or 0) }}</strong></div>
@@ -397,6 +400,12 @@ th{
                     <div class="detail-field"><span>DNP D câmera</span><strong>{{ "%.2f"|format(medicao.dnp_d_original or medicao.dnp_d or 0) }}</strong></div>
                     <div class="detail-field"><span>Status</span><strong>{{ medicao.status_validacao }}</strong></div>
                     <div class="detail-field"><span>Erro máx.</span><strong>{{ medicao.erro_max or "-" }}</strong></div>
+                    {% else %}
+                    <div class="detail-field"><span>Status</span><strong>SEM MEDIÇÃO</strong></div>
+                    <div class="detail-field"><span>Data exame</span><strong>{{ medicao.data_exame or "-" }}</strong></div>
+                    <div class="detail-field"><span>Sexo</span><strong>{{ medicao.sexo or "-" }}</strong></div>
+                    <div class="detail-field"><span>Nascimento</span><strong>{{ medicao.data_nascimento or "-" }}</strong></div>
+                    {% endif %}
                     <div class="detail-field"><span>Telefone</span><strong>{{ medicao.telefone or "-" }}</strong></div>
                     <div class="detail-field"><span>Paciente ID</span><strong>{{ medicao.paciente_id }}</strong></div>
                 </div>
@@ -444,17 +453,17 @@ th{
                             {% if item.ods %}
                             <a class="ods" href="/laboratorio?q={{ item.ods }}">{{ item.ods }}</a>
                             {% else %}
-                            <span class="ods">Sem ODS</span>
+                            <a class="ods" href="/laboratorio?q={{ item.paciente_id }}">Sem medição</a>
                             {% endif %}
                         </td>
                         <td>{{ item.nome or "-" }}</td>
-                        <td>{{ item.data or "-" }}</td>
-                        <td>{{ "%.2f"|format(item.dp or 0) }}</td>
-                        <td>{{ "%.2f"|format(item.dnp_e or 0) }}</td>
-                        <td>{{ "%.2f"|format(item.dnp_d or 0) }}</td>
-                        <td>{{ "%.1f"|format(item.score or 0) }}</td>
+                        <td>{{ item.data or item.data_exame or "-" }}</td>
+                        <td>{% if item.dp is not none %}{{ "%.2f"|format(item.dp) }}{% else %}-{% endif %}</td>
+                        <td>{% if item.dnp_e is not none %}{{ "%.2f"|format(item.dnp_e) }}{% else %}-{% endif %}</td>
+                        <td>{% if item.dnp_d is not none %}{{ "%.2f"|format(item.dnp_d) }}{% else %}-{% endif %}</td>
+                        <td>{% if item.score is not none %}{{ "%.1f"|format(item.score) }}{% else %}-{% endif %}</td>
                         <td>
-                            <span class="status {{ 'ok' if item.status_validacao == 'APROVADO' else 'warn' }}">
+                            <span class="status {{ 'ok' if item.status_validacao == 'APROVADO' else 'neutral' if item.status_validacao == 'SEM MEDIÇÃO' else 'warn' }}">
                                 {{ item.status_validacao }}
                             </span>
                         </td>

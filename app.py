@@ -448,16 +448,24 @@ def laboratorio():
     score_medio = cursor.fetchone()["media"] or 0
 
     cursor.execute("""
-        SELECT m.*, p.nome, p.rg, p.telefone, p.sexo, p.data_nascimento
+        SELECT id, nome, rg, telefone, sexo, data_nascimento, idade, data_exame, foto
+        FROM pacientes
+        ORDER BY id DESC
+        LIMIT 300
+    """)
+    todos_pacientes = cursor.fetchall()
+
+    cursor.execute("""
+        SELECT m.*, p.nome, p.rg, p.telefone, p.sexo, p.data_nascimento, p.idade, p.data_exame, p.foto
         FROM medicoes m
         LEFT JOIN pacientes p ON p.id = m.paciente_id
         ORDER BY COALESCE(m.data, '') DESC, m.id DESC
-        LIMIT 200
+        LIMIT 500
     """)
     todas_medicoes = cursor.fetchall()
 
-    def preparar_medicao(medicao):
-        item = dict(medicao)
+    def preparar_registro(registro, tem_medicao):
+        item = dict(registro)
         validacao = {}
 
         if item.get("validacao_json"):
@@ -466,23 +474,63 @@ def laboratorio():
             except json.JSONDecodeError:
                 validacao = {}
 
-        item["status_validacao"] = validacao.get("status", "PENDENTE")
+        item["tem_medicao"] = tem_medicao
+        item["status_validacao"] = validacao.get("status", "PENDENTE") if tem_medicao else "SEM MEDIÇÃO"
         item["erro_max"] = validacao.get("erro_max", "")
         item["desvio"] = validacao.get("desvio", "")
+        item["busca_link"] = item.get("ods") or item.get("rg") or item.get("nome") or item.get("paciente_id")
         return item
 
-    medicoes_preparadas = [preparar_medicao(m) for m in todas_medicoes]
+    medicoes_preparadas = [preparar_registro(m, True) for m in todas_medicoes]
+    ultima_medicao_por_paciente = {}
+    for medicao in medicoes_preparadas:
+        paciente_id = medicao.get("paciente_id")
+        if paciente_id and paciente_id not in ultima_medicao_por_paciente:
+            ultima_medicao_por_paciente[paciente_id] = medicao
+
+    pacientes_sem_medicao = []
+    for paciente in todos_pacientes:
+        if paciente["id"] in ultima_medicao_por_paciente:
+            continue
+
+        pacientes_sem_medicao.append(preparar_registro({
+            "id": None,
+            "paciente_id": paciente["id"],
+            "ods": None,
+            "nome": paciente.get("nome"),
+            "rg": paciente.get("rg"),
+            "telefone": paciente.get("telefone"),
+            "sexo": paciente.get("sexo"),
+            "data_nascimento": paciente.get("data_nascimento"),
+            "idade": paciente.get("idade"),
+            "data_exame": paciente.get("data_exame"),
+            "data": paciente.get("data_exame"),
+            "foto": paciente.get("foto"),
+            "caminho_imagem": paciente.get("foto"),
+            "dp": None,
+            "dnp_e": None,
+            "dnp_d": None,
+            "score": None,
+            "dp_original": None,
+            "dnp_e_original": None,
+            "dnp_d_original": None,
+            "validacao_json": None,
+            "historico_json": None,
+        }, False))
+
+    registros_laboratorio = medicoes_preparadas + pacientes_sem_medicao
     aprovadas = sum(1 for m in medicoes_preparadas if m["status_validacao"] == "APROVADO")
     revisar = sum(1 for m in medicoes_preparadas if m["status_validacao"] != "APROVADO")
 
-    resultados = medicoes_preparadas
+    resultados = registros_laboratorio
     if busca:
         termo = busca.lower()
         resultados = [
-            m for m in medicoes_preparadas
+            m for m in registros_laboratorio
             if termo in (m.get("ods") or "").lower()
             or termo in (m.get("nome") or "").lower()
             or termo in (m.get("rg") or "").lower()
+            or termo == str(m.get("paciente_id") or "")
         ]
 
     medicao_selecionada = None
@@ -506,6 +554,7 @@ def laboratorio():
             "total_pacientes": total_pacientes,
             "total_medicoes": total_medicoes,
             "medicoes_hoje": medicoes_hoje,
+            "pacientes_sem_medicao": len(pacientes_sem_medicao),
             "aprovadas": aprovadas,
             "revisar": revisar,
             "score_medio": round(score_medio, 1),
