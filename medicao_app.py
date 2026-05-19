@@ -263,8 +263,14 @@ def process_frame():
         "dnp_e": dados_medicao.get("dnp_e", 0),
         "dnp_d": dados_medicao.get("dnp_d", 0),
         "score": dados_medicao.get("score", 0),
+        "capturado": dados_medicao.get("capturado", False),
         "confiavel": dados_medicao.get("confiavel", False),
+        "instrucao": dados_medicao.get("instrucao", ""),
         "iris_px": dados_medicao.get("iris_px"),
+        "olhos_ok": dados_medicao.get("olhos_ok", False),
+        "cabeca_ok": dados_medicao.get("cabeca_ok", False),
+        "centro_ok": dados_medicao.get("centro_ok", False),
+        "dist_ok": dados_medicao.get("dist_ok", False),
     })
 
 

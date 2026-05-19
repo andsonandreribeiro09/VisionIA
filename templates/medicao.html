@@ -562,10 +562,12 @@ const frameCtx = frameCanvas.getContext("2d");
 const FRAME_INTERVAL_MS = 260;
 const DATA_INTERVAL_MS = 220;
 const PROCESS_MAX_WIDTH = 960;
-const CAPTURE_SCORE_MIN = 75;
-const CAPTURE_RESET_SCORE = 55;
-const CAPTURE_HOLD_MS = 550;
+const CAPTURE_SCORE_MIN = 70;
+const CAPTURE_RESET_SCORE = 45;
+const CAPTURE_HOLD_MS = 450;
 const TOTAL_CAPTURAS = 4;
+let ultimoFrameOkEm = 0;
+let falhasProcessamento = 0;
 
 function numero(valor, fallback = 0){
     const convertido = Number(valor);
@@ -639,9 +641,20 @@ async function enviarFramesParaIA(){
             throw new Error(`Falha ${resp.status} ao processar frame`);
         }
 
+        const resultado = await resp.json();
+        if(resultado.status !== "ok"){
+            throw new Error(resultado.msg || "Frame recusado");
+        }
+
+        ultimoFrameOkEm = Date.now();
+        falhasProcessamento = 0;
+
     }catch(e){
+        falhasProcessamento += 1;
         console.warn("Falha ao processar frame:", e);
-        instrucaoEl.innerText = "Reconectando leitura...";
+        if(falhasProcessamento >= 4){
+            instrucaoEl.innerText = "Reconectando leitura...";
+        }
 
     }finally{
         processandoFrame = false;
@@ -703,19 +716,22 @@ let loopIA = setInterval(async () => {
         // =========================
         // FEEDBACK VISUAL
         // =========================
-        const leituraBoa = (data.confiavel || data.capturado) && score >= CAPTURE_SCORE_MIN && dp > 0 && dnpE > 0 && dnpD > 0;
+        const frameRecente = Date.now() - ultimoFrameOkEm < 1600;
+        const medidasValidas = dp > 0 && dnpE > 0 && dnpD > 0;
+        const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false;
+        const leituraBoa = frameRecente && medidasValidas && posicaoOk && score >= CAPTURE_SCORE_MIN;
 
         if(leituraBoa){
             faceGuide.style.borderColor = "lime";
             instrucaoEl.innerText = "Perfeito! Nao se mova...";
         } 
-        else if(score > CAPTURE_RESET_SCORE){
+        else if(score > CAPTURE_RESET_SCORE && frameRecente){
             faceGuide.style.borderColor = "yellow";
             instrucaoEl.innerText = data.instrucao || "Ajuste levemente...";
         } 
         else{
             faceGuide.style.borderColor = "red";
-            instrucaoEl.innerText = data.instrucao || "Posicione melhor o rosto";
+            instrucaoEl.innerText = frameRecente ? (data.instrucao || "Posicione melhor o rosto") : "Aguardando leitura da camera...";
         }
 
         // =========================
@@ -750,7 +766,7 @@ let loopIA = setInterval(async () => {
                 }
             }
 
-        } else if(score < CAPTURE_RESET_SCORE || (!data.confiavel && !data.capturado)) {
+        } else if(!frameRecente || score < CAPTURE_RESET_SCORE || !medidasValidas) {
             capturando = false;
             tempoInicio = null;
             progressBar.style.width = "0%";
