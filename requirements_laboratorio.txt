@@ -1,6 +1,3 @@
 flask
-mediapipe
-numpy
 gunicorn==23.0.0
-opencv-python-headless
 psycopg[binary]

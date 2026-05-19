@@ -1,0 +1,18 @@
+FROM python:3.11-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV VISIONAI_APP=laboratorio
+
+WORKDIR /app
+
+COPY requirements_laboratorio.txt .
+
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements_laboratorio.txt
+
+COPY . .
+
+EXPOSE 10000
+
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:10000", "--workers", "1", "--threads", "4", "--timeout", "120"]

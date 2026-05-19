@@ -22,16 +22,6 @@ def _env_float(nome, padrao):
         return padrao
 
 
-# No Render a imagem vem do navegador do tablet/iPad, nao de uma camera USB
-# do servidor. Usar uma matrix calibrada em outra camera distorce os pontos.
-USE_CAMERA_CALIBRATION = os.environ.get("VISIONAI_USE_CAMERA_CALIBRATION", "0") == "1"
-
-camera_matrix = None
-dist_coeffs = None
-if USE_CAMERA_CALIBRATION:
-    camera_matrix = np.load("camera_matrix.npy")
-    dist_coeffs = np.load("dist_coeffs.npy")
-
 IPD_REAL_MM = _env_float("VISIONAI_IPD_REAL_MM", 63.0)
 IRIS_REAL_MM = _env_float("VISIONAI_IRIS_REAL_MM", 11.7)
 TARGET_DISTANCE_CM = _env_float("VISIONAI_TARGET_DISTANCE_CM", 40.0)
@@ -179,14 +169,6 @@ def processar_frame(frame):
     # -----------------------------
     # CORREÇÃO DE DISTORÇÃO (ESSENCIAL)
     # -----------------------------
-    if USE_CAMERA_CALIBRATION and not hasattr(processar_frame, "newcameramtx"):
-        processar_frame.newcameramtx, _ = cv2.getOptimalNewCameraMatrix(
-            camera_matrix, dist_coeffs, (w, h), 0.3, (w, h)
-        )
-
-    if USE_CAMERA_CALIBRATION:
-        frame = cv2.undistort(frame, camera_matrix, dist_coeffs, None, processar_frame.newcameramtx)
-
     # timestamp
     frame_id = getattr(processar_frame, "frame_id", 0) + 1
     processar_frame.frame_id = frame_id
@@ -509,14 +491,5 @@ def processar_frame(frame):
     dados_medicao["dist_ok"] = bool(dist_ok)
     dados_medicao["validacao"] = validacao
     dados_medicao["historico"] = historico_dp
-
-    # -----------------------------
-    # OVERLAY
-    # -----------------------------
-    cor = (0,255,0) if capturado else (0,255,255)
-
-    cv2.circle(frame, (int(lx_opt), int(ly_opt)), 3, (255,0,0), -1)
-    cv2.circle(frame, (int(rx_opt), int(ry_opt)), 3, (255,0,0), -1)
-    cv2.circle(frame, (nx, ny), 4, (0,0,255), -1)
 
     return frame
