@@ -49,6 +49,25 @@ $env:VISIONAI_MIN_BATCH_CAPTURES = if ($env:VISIONAI_MIN_BATCH_CAPTURES) { $env:
 $env:VISIONAI_MAX_BATCH_ERRO_MM = if ($env:VISIONAI_MAX_BATCH_ERRO_MM) { $env:VISIONAI_MAX_BATCH_ERRO_MM } else { "1.6" }
 $env:VISIONAI_MAX_BATCH_STD_MM = if ($env:VISIONAI_MAX_BATCH_STD_MM) { $env:VISIONAI_MAX_BATCH_STD_MM } else { "0.9" }
 
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCmd) {
+    Write-Host ""
+    Write-Host "Python nao encontrado no PATH."
+    Write-Host ""
+    exit 1
+}
+
+$pythonPath = & $pythonCmd.Source -c "import sys; print(sys.executable)"
+Write-Host "Python:      $pythonPath"
+
+& $pythonCmd.Source -c "import psycopg" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Instalando driver PostgreSQL psycopg[binary]..."
+    & $pythonCmd.Source -m pip install "psycopg[binary]"
+}
+
+$psycopgVersion = & $pythonCmd.Source -c "import psycopg; print(psycopg.__version__)"
+
 $localIp = Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias "Wi-Fi" -ErrorAction SilentlyContinue |
     Where-Object { $_.IPAddress -notlike "169.254.*" } |
     Select-Object -First 1 -ExpandProperty IPAddress
@@ -59,7 +78,8 @@ if ($localIp) {
     Write-Host "URL rede:    http://$localIp`:$($env:PORT)"
 }
 Write-Host "Banco:       PostgreSQL Render"
+Write-Host "PostgreSQL:  psycopg $psycopgVersion"
 Write-Host "Captura:     score $($env:VISIONAI_UI_CAPTURE_SCORE_MIN), $($env:VISIONAI_UI_CAPTURE_HOLD_MS)ms, $($env:VISIONAI_UI_TOTAL_CAPTURES) capturas"
 Write-Host ""
 
-python app.py
+& $pythonCmd.Source app.py
