@@ -29,6 +29,30 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
 
 
+def env_float(nome, padrao):
+    try:
+        return float(os.getenv(nome, padrao))
+    except (TypeError, ValueError):
+        return padrao
+
+
+def env_int(nome, padrao):
+    try:
+        return int(float(os.getenv(nome, padrao)))
+    except (TypeError, ValueError):
+        return padrao
+
+
+def capture_ui_config():
+    modo_local = os.getenv("VISIONAI_LOCAL_MODE", "0") == "1"
+    return {
+        "score_min": env_float("VISIONAI_UI_CAPTURE_SCORE_MIN", 78 if modo_local else 70),
+        "reset_score": env_float("VISIONAI_UI_CAPTURE_RESET_SCORE", 55 if modo_local else 45),
+        "hold_ms": env_int("VISIONAI_UI_CAPTURE_HOLD_MS", 900 if modo_local else 450),
+        "total": env_int("VISIONAI_UI_TOTAL_CAPTURES", 5 if modo_local else 4),
+    }
+
+
 @app.route("/")
 def index():
     session.pop("paciente_id", None)
@@ -160,7 +184,12 @@ def medicao(paciente_id=None):
         return redirect(url_for("paciente"))
 
     session["paciente_id"] = paciente_id
-    return render_template("medicao.html", paciente=paciente, paciente_id=paciente_id)
+    return render_template(
+        "medicao.html",
+        paciente=paciente,
+        paciente_id=paciente_id,
+        capture_config=capture_ui_config(),
+    )
 
 
 @app.route("/dados")
