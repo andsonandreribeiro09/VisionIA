@@ -33,6 +33,7 @@ MAX_DP_STD_MM = _env_float("VISIONAI_MAX_DP_STD_MM", 1.1)
 MIN_STABLE_FRAMES = int(_env_float("VISIONAI_MIN_STABLE_FRAMES", 4))
 MIN_STABLE_SECONDS = _env_float("VISIONAI_MIN_STABLE_SECONDS", 0.55)
 IRIS_PX_AT_TARGET_DISTANCE = _env_float("VISIONAI_IRIS_PX_AT_40CM", 0.0)
+CAPTURED_RESET_SECONDS = _env_float("VISIONAI_CAPTURED_RESET_SECONDS", 3.0)
 
 # -----------------------------
 # CONFIG MEDIAPIPE
@@ -445,7 +446,7 @@ def processar_frame(frame):
             processar_frame.tempo_reset = time.time()
 
         else:
-            if time.time() - processar_frame.tempo_reset > 3:
+            if time.time() - processar_frame.tempo_reset > CAPTURED_RESET_SECONDS:
                 resetar_medicao()
                 processar_frame.tempo_reset = None
     # -----------------------------

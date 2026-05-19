@@ -46,10 +46,15 @@ def env_int(nome, padrao):
 def capture_ui_config():
     modo_local = os.getenv("VISIONAI_LOCAL_MODE", "0") == "1"
     return {
-        "score_min": env_float("VISIONAI_UI_CAPTURE_SCORE_MIN", 78 if modo_local else 70),
-        "reset_score": env_float("VISIONAI_UI_CAPTURE_RESET_SCORE", 55 if modo_local else 45),
-        "hold_ms": env_int("VISIONAI_UI_CAPTURE_HOLD_MS", 900 if modo_local else 450),
-        "total": env_int("VISIONAI_UI_TOTAL_CAPTURES", 5 if modo_local else 4),
+        "score_min": env_float("VISIONAI_UI_CAPTURE_SCORE_MIN", 82 if modo_local else 70),
+        "reset_score": env_float("VISIONAI_UI_CAPTURE_RESET_SCORE", 60 if modo_local else 45),
+        "hold_ms": env_int("VISIONAI_UI_CAPTURE_HOLD_MS", 1800 if modo_local else 450),
+        "total": env_int("VISIONAI_UI_TOTAL_CAPTURES", 6 if modo_local else 4),
+        "cooldown_ms": env_int("VISIONAI_UI_CAPTURE_COOLDOWN_MS", 900 if modo_local else 250),
+        "require_stable": os.getenv("VISIONAI_UI_REQUIRE_STABLE", "1" if modo_local else "0") == "1",
+        "stable_samples": env_int("VISIONAI_UI_STABLE_SAMPLES", 6 if modo_local else 4),
+        "max_dp_spread": env_float("VISIONAI_UI_MAX_DP_SPREAD", 1.2 if modo_local else 2.0),
+        "max_capture_gap": env_float("VISIONAI_UI_MAX_CAPTURE_GAP", 1.6 if modo_local else 3.0),
     }
 
 
@@ -318,6 +323,17 @@ def salvar_lote():
     if not medicoes:
         return {"status": "erro", "msg": "Nenhuma medicao recebida"}
 
+    modo_local = os.getenv("VISIONAI_LOCAL_MODE", "0") == "1"
+    min_capturas = env_int("VISIONAI_MIN_BATCH_CAPTURES", env_int("VISIONAI_UI_TOTAL_CAPTURES", 6 if modo_local else 4))
+    max_erro_lote = env_float("VISIONAI_MAX_BATCH_ERRO_MM", 1.6 if modo_local else 2.0)
+    max_desvio_lote = env_float("VISIONAI_MAX_BATCH_STD_MM", 0.9 if modo_local else 1.1)
+
+    if len(medicoes) < min_capturas:
+        return {
+            "status": "erro",
+            "msg": f"Capture pelo menos {min_capturas} leituras estaveis antes de finalizar.",
+        }
+
     conn = get_db()
     cursor = conn.cursor()
     ods = gerar_ods(cursor)
@@ -328,35 +344,34 @@ def salvar_lote():
     scores = []
     capturas_csv = []
     imagens_salvas = []
+    capturas_preparadas = []
 
-    os.makedirs("static/fotos", exist_ok=True)
+    try:
+        for medicao_item in medicoes:
+            dp = float(medicao_item["dp"])
+            dnp_e = float(medicao_item["dnp_e"])
+            dnp_d = float(medicao_item["dnp_d"])
+            score = float(medicao_item["score"])
+            imagem = medicao_item["imagem"]
 
-    for medicao_item in medicoes:
-        dp = float(medicao_item["dp"])
-        dnp_e = float(medicao_item["dnp_e"])
-        dnp_d = float(medicao_item["dnp_d"])
-        score = float(medicao_item["score"])
-        imagem = medicao_item["imagem"]
+            if min(dp, dnp_e, dnp_d, score) <= 0:
+                raise ValueError("Medicao invalida")
 
-        img_data = base64.b64decode(imagem.split(",", 1)[1])
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        caminho = f"static/fotos/paciente_{paciente_id}_{timestamp}.jpg"
+            capturas_preparadas.append({
+                "dp": dp,
+                "dnp_e": dnp_e,
+                "dnp_d": dnp_d,
+                "score": score,
+                "imagem": imagem,
+            })
 
-        with open(caminho, "wb") as arquivo:
-            arquivo.write(img_data)
-
-        imagens_salvas.append(caminho)
-        dps.append(dp)
-        dnps_e.append(dnp_e)
-        dnps_d.append(dnp_d)
-        scores.append(score)
-        capturas_csv.append({
-            "dp": dp,
-            "dnp_e": dnp_e,
-            "dnp_d": dnp_d,
-            "score": score,
-            "foto": caminho,
-        })
+            dps.append(dp)
+            dnps_e.append(dnp_e)
+            dnps_d.append(dnp_d)
+            scores.append(score)
+    except (KeyError, TypeError, ValueError):
+        conn.close()
+        return {"status": "erro", "msg": "Lote de medicoes invalido. Repita a captura."}
 
     media = float(np.mean(dps))
     dnp_e_media = float(np.mean(dnps_e))
@@ -364,6 +379,41 @@ def salvar_lote():
     score_medio = float(np.mean(scores))
     desvio = float(np.std(dps))
     erro_max = float(max([abs(valor - media) for valor in dps]))
+
+    if erro_max > max_erro_lote or desvio > max_desvio_lote:
+        conn.close()
+        return {
+            "status": "erro",
+            "msg": (
+                "As leituras variaram demais. "
+                "Refaca a medicao com o paciente parado e rosto centralizado."
+            ),
+            "erro_max": round(erro_max, 2),
+            "desvio": round(desvio, 2),
+        }
+
+    os.makedirs("static/fotos", exist_ok=True)
+
+    for medicao_item in capturas_preparadas:
+        img_data = base64.b64decode(medicao_item["imagem"].split(",", 1)[1])
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        caminho = f"static/fotos/paciente_{paciente_id}_{timestamp}.jpg"
+
+        with open(caminho, "wb") as arquivo:
+            arquivo.write(img_data)
+
+        dp = medicao_item["dp"]
+        dnp_e = medicao_item["dnp_e"]
+        dnp_d = medicao_item["dnp_d"]
+        score = medicao_item["score"]
+        imagens_salvas.append(caminho)
+        capturas_csv.append({
+            "dp": dp,
+            "dnp_e": dnp_e,
+            "dnp_d": dnp_d,
+            "score": score,
+            "foto": caminho,
+        })
 
     cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
     paciente_calibracao = cursor.fetchone()

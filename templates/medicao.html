@@ -568,12 +568,59 @@ const CAPTURE_SCORE_MIN = Number(CAPTURE_CONFIG.score_min ?? 70);
 const CAPTURE_RESET_SCORE = Number(CAPTURE_CONFIG.reset_score ?? 45);
 const CAPTURE_HOLD_MS = Number(CAPTURE_CONFIG.hold_ms ?? 450);
 const TOTAL_CAPTURAS = Number(CAPTURE_CONFIG.total ?? 4);
+const CAPTURE_COOLDOWN_MS = Number(CAPTURE_CONFIG.cooldown_ms ?? 250);
+const REQUIRE_STABLE = Boolean(CAPTURE_CONFIG.require_stable ?? false);
+const STABLE_SAMPLES = Number(CAPTURE_CONFIG.stable_samples ?? 4);
+const MAX_DP_SPREAD = Number(CAPTURE_CONFIG.max_dp_spread ?? 2);
+const MAX_CAPTURE_GAP = Number(CAPTURE_CONFIG.max_capture_gap ?? 3);
 let ultimoFrameOkEm = 0;
+let ultimaCapturaEm = 0;
 let falhasProcessamento = 0;
+let leiturasRecentes = [];
 
 function numero(valor, fallback = 0){
     const convertido = Number(valor);
     return Number.isFinite(convertido) ? convertido : fallback;
+}
+
+function registrarLeitura(dp, dnpE, dnpD, score){
+    if(dp <= 0 || dnpE <= 0 || dnpD <= 0 || score <= 0){
+        return;
+    }
+
+    leiturasRecentes.push({ dp, dnpE, dnpD, score, em: Date.now() });
+    if(leiturasRecentes.length > 12){
+        leiturasRecentes.shift();
+    }
+}
+
+function amplitude(lista, campo){
+    const valores = lista.map(item => item[campo]);
+    return Math.max(...valores) - Math.min(...valores);
+}
+
+function leituraEstavel(){
+    const agora = Date.now();
+    const recentes = leiturasRecentes
+        .filter(item => agora - item.em < 2600)
+        .slice(-STABLE_SAMPLES);
+
+    if(recentes.length < STABLE_SAMPLES){
+        return false;
+    }
+
+    return amplitude(recentes, "dp") <= MAX_DP_SPREAD
+        && amplitude(recentes, "dnpE") <= MAX_DP_SPREAD
+        && amplitude(recentes, "dnpD") <= MAX_DP_SPREAD;
+}
+
+function compativelComCapturas(dp){
+    if(!medicoes.length){
+        return true;
+    }
+
+    const mediaAtual = medicoes.reduce((total, item) => total + item.dp, 0) / medicoes.length;
+    return Math.abs(dp - mediaAtual) <= MAX_CAPTURE_GAP;
 }
 
 async function iniciarCameraTablet(){
@@ -681,6 +728,7 @@ let loopIA = setInterval(async () => {
         const dnpE = numero(data.dnp_e);
         const dnpD = numero(data.dnp_d);
         const score = numero(data.score);
+        registrarLeitura(dp, dnpE, dnpD, score);
 
         dpEl.innerText = dp.toFixed(1);
         dnp_eEl.innerText = dnpE.toFixed(1);
@@ -721,7 +769,9 @@ let loopIA = setInterval(async () => {
         const frameRecente = Date.now() - ultimoFrameOkEm < 1600;
         const medidasValidas = dp > 0 && dnpE > 0 && dnpD > 0;
         const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false;
-        const leituraBoa = frameRecente && medidasValidas && posicaoOk && score >= CAPTURE_SCORE_MIN;
+        const estavel = leituraEstavel();
+        const estabilidadeOk = !REQUIRE_STABLE || (data.confiavel && estavel);
+        const leituraBoa = frameRecente && medidasValidas && posicaoOk && estabilidadeOk && score >= CAPTURE_SCORE_MIN;
 
         if(leituraBoa){
             faceGuide.style.borderColor = "lime";
@@ -729,7 +779,7 @@ let loopIA = setInterval(async () => {
         } 
         else if(score > CAPTURE_RESET_SCORE && frameRecente){
             faceGuide.style.borderColor = "yellow";
-            instrucaoEl.innerText = data.instrucao || "Ajuste levemente...";
+            instrucaoEl.innerText = estavel ? (data.instrucao || "Ajuste levemente...") : "Estabilizando leitura...";
         } 
         else{
             faceGuide.style.borderColor = "red";
@@ -756,15 +806,18 @@ let loopIA = setInterval(async () => {
             // quando completar tempo → captura
             if(tempoMs >= CAPTURE_HOLD_MS){
 
-                salvarCaptura(); // 🔥 SALVA LOCAL
+                if(salvarCaptura()){
+                    capturando = false;
+                    tempoInicio = null;
+                    progressBar.style.width = "0%";
 
-                capturando = false;
-                tempoInicio = null;
-                progressBar.style.width = "0%";
-
-                // Finaliza ao atingir o total configurado
-                if(medicoes.length >= TOTAL_CAPTURAS){
-                    finalizar();
+                    // Finaliza ao atingir o total configurado
+                    if(medicoes.length >= TOTAL_CAPTURAS){
+                        finalizar();
+                    }
+                } else {
+                    tempoInicio = Date.now();
+                    progressBar.style.width = "0%";
                 }
             }
 
@@ -803,18 +856,34 @@ function capturarFoto(){
 // SALVAR CAPTURA LOCAL
 // =========================
 function salvarCaptura(){
+    const agora = Date.now();
+    if(agora - ultimaCapturaEm < CAPTURE_COOLDOWN_MS){
+        return false;
+    }
+
+    const dpAtual = parseFloat(dpEl.innerText);
+    const dnpEAtual = parseFloat(dnp_eEl.innerText);
+    const dnpDAtual = parseFloat(dnp_dEl.innerText);
+    const scoreAtual = parseFloat(scoreEl.innerText);
+
+    if(!compativelComCapturas(dpAtual)){
+        instrucaoEl.innerText = "Leitura oscilou. Segure mais um pouco...";
+        return false;
+    }
 
     const foto = capturarFoto();
 
     medicoes.push({
-        dp: parseFloat(dpEl.innerText),
-        dnp_e: parseFloat(dnp_eEl.innerText),
-        dnp_d: parseFloat(dnp_dEl.innerText),
-        score: parseFloat(scoreEl.innerText),
+        dp: dpAtual,
+        dnp_e: dnpEAtual,
+        dnp_d: dnpDAtual,
+        score: scoreAtual,
         imagem: foto
     });
 
+    ultimaCapturaEm = agora;
     statusEl.innerText = `📸 Captura ${medicoes.length}/${TOTAL_CAPTURAS}`;
+    return true;
 }
 
 
@@ -841,7 +910,7 @@ function finalizar(){
 
         if(resp.status !== "ok"){
             finalizado = false;
-            statusEl.innerText = "❌ Erro ao salvar medições";
+            statusEl.innerText = resp.msg || "❌ Erro ao salvar medições";
             return;
         }
 
