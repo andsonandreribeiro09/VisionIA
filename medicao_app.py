@@ -184,7 +184,7 @@ def salvar_paciente():
         "data_exame": data_exame,
     })
 
-    return redirect(url_for("medicao", paciente_id=paciente_id))
+    return redirect(url_for("medicao", paciente_id=paciente_id), code=303)
 
 
 @app.route("/medicao")

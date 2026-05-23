@@ -554,6 +554,7 @@ const faceGuide = document.querySelector(".face-guide");
 let capturando = false;
 let tempoInicio = null;
 let finalizado = false;
+let enviandoLote = false;
 let cameraStream = null;
 let processandoFrame = false;
 let medicoes = [];
@@ -762,7 +763,6 @@ let loopIA = setInterval(async () => {
         else{
             statusEl.style.background = "#000";
         }
-
         // =========================
         // FEEDBACK VISUAL
         // =========================
@@ -789,6 +789,11 @@ let loopIA = setInterval(async () => {
         // =========================
         // AUTO CAPTURA INTELIGENTE
         // =========================
+        if(medicoes.length >= TOTAL_CAPTURAS){
+            finalizar();
+            return;
+        }
+
         if(leituraBoa){
 
             // inicia contagem
@@ -856,6 +861,10 @@ function capturarFoto(){
 // SALVAR CAPTURA LOCAL
 // =========================
 function salvarCaptura(){
+    if(finalizado || enviandoLote || medicoes.length >= TOTAL_CAPTURAS){
+        return false;
+    }
+
     const agora = Date.now();
     if(agora - ultimaCapturaEm < CAPTURE_COOLDOWN_MS){
         return false;
@@ -882,7 +891,7 @@ function salvarCaptura(){
     });
 
     ultimaCapturaEm = agora;
-    statusEl.innerText = `📸 Captura ${medicoes.length}/${TOTAL_CAPTURAS}`;
+    statusEl.innerText = `Captura ${Math.min(medicoes.length, TOTAL_CAPTURAS)}/${TOTAL_CAPTURAS}`;
     return true;
 }
 
@@ -892,8 +901,10 @@ function salvarCaptura(){
 // =========================
 function finalizar(){
 
-    if(finalizado) return;
+    if(finalizado || enviandoLote) return;
     finalizado = true;
+    enviandoLote = true;
+    medicoes = medicoes.slice(0, TOTAL_CAPTURAS);
 
     statusEl.innerText = "📊 Validando medições...";
 
@@ -906,10 +917,11 @@ function finalizar(){
         })
     })
     .then(res => res.json())
-    .then(async (resp) => {
+    .then((resp) => {
 
         if(resp.status !== "ok"){
             finalizado = false;
+            enviandoLote = false;
             statusEl.innerText = resp.msg || "❌ Erro ao salvar medições";
             return;
         }
@@ -933,7 +945,9 @@ ${resp.status_validacao === "APROVADO" ? "✅ APROVADO" : "❌ REPROVADO"}
             // =========================
             // 🔥 DESLIGA BACKEND
             // =========================
-            await fetch("/stop_camera");
+            fetch("/stop_camera").catch(e => {
+                console.warn("Erro ao parar câmera backend:", e);
+            });
 
         } catch(e){
             console.warn("Erro ao parar câmera backend:", e);
@@ -954,15 +968,14 @@ ${resp.status_validacao === "APROVADO" ? "✅ APROVADO" : "❌ REPROVADO"}
         // =========================
         // 🔥 REDIRECIONA
         // =========================
-        setTimeout(() => {
-            window.location.href = "/";
-        }, 1500);
+        window.location.replace("/");
 
     })
     .catch(err => {
         console.error(err);
         statusEl.innerText = "❌ Falha na comunicação com servidor";
         finalizado = false;
+        enviandoLote = false;
     });
 }
 

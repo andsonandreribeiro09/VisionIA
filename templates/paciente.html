@@ -210,7 +210,7 @@ button:hover {
 
 <h2>Cadastro do Paciente</h2>
 
-<form action="{{ url_for('salvar_paciente') }}" method="POST">
+<form action="{{ url_for('salvar_paciente') }}" method="POST" id="cadastro-form">
 
     <div class="input-group">
         <label>Nome Completo</label>
@@ -252,7 +252,7 @@ button:hover {
         <input type="date" name="data_exame" required>
     </div>
 
-    <button type="submit">
+    <button type="submit" id="btn-continuar">
         Salvar e Continuar
     </button>
 
@@ -275,6 +275,12 @@ document.getElementById("data_nascimento").addEventListener("change", function()
     }
 
     document.getElementById("idade").value = idade;
+});
+
+document.getElementById("cadastro-form").addEventListener("submit", function() {
+    const botao = document.getElementById("btn-continuar");
+    botao.disabled = true;
+    botao.innerText = "Abrindo medicao...";
 });
 </script>
 
