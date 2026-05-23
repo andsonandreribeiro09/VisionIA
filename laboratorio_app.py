@@ -182,6 +182,18 @@ def laboratorio():
         item["status_validacao"] = validacao.get("status", "PENDENTE") if tem_medicao else "SEM MEDIÇÃO"
         item["erro_max"] = validacao.get("erro_max", "")
         item["desvio"] = validacao.get("desvio", "")
+        qualidade = validacao.get("qualidade") or {}
+        item["score_geometrico"] = qualidade.get("score_geometrico")
+        item["ambiente_score"] = qualidade.get("ambiente_score")
+        item["yaw"] = qualidade.get("yaw")
+        item["pitch"] = qualidade.get("pitch")
+        item["roll"] = qualidade.get("roll")
+        item["distancia_cm"] = qualidade.get("distancia_cm")
+        item["iris_px"] = qualidade.get("iris_px")
+        item["centro_face_offset"] = qualidade.get("centro_face_offset")
+        item["brilho"] = qualidade.get("brilho")
+        item["contraste"] = qualidade.get("contraste")
+        item["nitidez"] = qualidade.get("nitidez")
         item["busca_link"] = item.get("ods") or item.get("rg") or item.get("nome") or item.get("paciente_id")
         return item
 

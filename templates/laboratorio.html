@@ -476,6 +476,12 @@ th{
                     <div class="detail-field"><span>DNP D câmera</span><strong>{{ "%.2f"|format(medicao.dnp_d_original or medicao.dnp_d or 0) }}</strong></div>
                     <div class="detail-field"><span>Status</span><strong>{{ medicao.status_validacao }}</strong></div>
                     <div class="detail-field"><span>Erro máx.</span><strong>{{ medicao.erro_max or "-" }}</strong></div>
+                    <div class="detail-field"><span>Qualidade geom.</span><strong>{% if medicao.score_geometrico is not none %}{{ "%.1f"|format(medicao.score_geometrico) }}{% else %}-{% endif %}</strong></div>
+                    <div class="detail-field"><span>Ambiente</span><strong>{% if medicao.ambiente_score is not none %}{{ "%.1f"|format(medicao.ambiente_score) }}{% else %}-{% endif %}</strong></div>
+                    <div class="detail-field"><span>Yaw / Roll</span><strong>{% if medicao.yaw is not none and medicao.roll is not none %}{{ "%.1f"|format(medicao.yaw) }} / {{ "%.1f"|format(medicao.roll) }}{% else %}-{% endif %}</strong></div>
+                    <div class="detail-field"><span>Dist. / iris</span><strong>{% if medicao.distancia_cm is not none or medicao.iris_px is not none %}{{ "%.1f"|format(medicao.distancia_cm or 0) }} cm / {{ "%.1f"|format(medicao.iris_px or 0) }} px{% else %}-{% endif %}</strong></div>
+                    <div class="detail-field"><span>Centro face</span><strong>{% if medicao.centro_face_offset is not none %}{{ "%.1f"|format(medicao.centro_face_offset) }}%{% else %}-{% endif %}</strong></div>
+                    <div class="detail-field"><span>Brilho / nitidez</span><strong>{% if medicao.brilho is not none or medicao.nitidez is not none %}{{ "%.0f"|format(medicao.brilho or 0) }} / {{ "%.0f"|format(medicao.nitidez or 0) }}{% else %}-{% endif %}</strong></div>
                     {% else %}
                     <div class="detail-field"><span>Status</span><strong>SEM MEDIÇÃO</strong></div>
                     <div class="detail-field"><span>Data exame</span><strong>{{ medicao.data_exame or "-" }}</strong></div>

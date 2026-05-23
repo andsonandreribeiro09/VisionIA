@@ -80,6 +80,48 @@ def faixa_dp_paciente(paciente):
     return "adulto", 58, 70, 54, 78
 
 
+QUALIDADE_CAMPOS = [
+    "yaw",
+    "pitch",
+    "roll",
+    "iris_px",
+    "distancia_cm",
+    "centro_face",
+    "centro_face_offset",
+    "score_geometrico",
+    "ambiente_score",
+    "brilho",
+    "contraste",
+    "nitidez",
+]
+
+
+def qualidade_atual():
+    return {campo: dados_medicao.get(campo) for campo in QUALIDADE_CAMPOS}
+
+
+def numero_opcional(valor):
+    try:
+        if valor is None or valor == "":
+            return None
+        return float(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def resumir_qualidade(capturas):
+    resumo = {}
+    for campo in QUALIDADE_CAMPOS:
+        valores = [
+            numero_opcional((captura.get("qualidade") or {}).get(campo))
+            for captura in capturas
+        ]
+        valores = [valor for valor in valores if valor is not None]
+        if valores:
+            resumo[campo] = round(float(np.mean(valores)), 2)
+    return resumo
+
+
 @app.route("/")
 def index():
     session.pop("paciente_id", None)
@@ -284,6 +326,7 @@ def dados():
         "dp_min": dp_min,
         "dp_max": dp_max,
         "status_dp": status_dp,
+        **qualidade_atual(),
     })
 
 
@@ -324,6 +367,7 @@ def process_frame():
         "cabeca_ok": dados_medicao.get("cabeca_ok", False),
         "centro_ok": dados_medicao.get("centro_ok", False),
         "dist_ok": dados_medicao.get("dist_ok", False),
+        **qualidade_atual(),
     })
 
 
@@ -372,6 +416,11 @@ def salvar_lote():
             dnp_d = float(medicao_item["dnp_d"])
             score = float(medicao_item["score"])
             imagem = medicao_item["imagem"]
+            qualidade = {
+                campo: numero_opcional((medicao_item.get("qualidade") or {}).get(campo))
+                for campo in QUALIDADE_CAMPOS
+            }
+            qualidade = {campo: valor for campo, valor in qualidade.items() if valor is not None}
 
             if min(dp, dnp_e, dnp_d, score) <= 0:
                 raise ValueError("Medicao invalida")
@@ -382,6 +431,7 @@ def salvar_lote():
                 "dnp_d": dnp_d,
                 "score": score,
                 "imagem": imagem,
+                "qualidade": qualidade,
             })
 
             dps.append(dp)
@@ -399,6 +449,7 @@ def salvar_lote():
     score_medio = float(np.mean(scores))
     desvio = float(np.std(dps))
     erro_max = float(max([abs(valor - media) for valor in dps]))
+    qualidade_resumo = resumir_qualidade(capturas_preparadas)
 
     if erro_max > max_erro_lote or desvio > max_desvio_lote:
         conn.close()
@@ -467,6 +518,7 @@ def salvar_lote():
             "dnp_e": dnp_e,
             "dnp_d": dnp_d,
             "score": score,
+            "qualidade": medicao_item.get("qualidade") or {},
             "foto": caminho,
         })
 
@@ -489,6 +541,7 @@ def salvar_lote():
         "desvio": round(desvio, 3),
         "erro_max": round(erro_max, 2),
         "metodo": "mediana" if usar_mediana else "media",
+        "qualidade": qualidade_resumo,
         "status": status,
     }
 

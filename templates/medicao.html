@@ -580,10 +580,36 @@ let ultimoFrameOkEm = 0;
 let ultimaCapturaEm = 0;
 let falhasProcessamento = 0;
 let leiturasRecentes = [];
+let ultimaQualidade = {};
 
 function numero(valor, fallback = 0){
     const convertido = Number(valor);
     return Number.isFinite(convertido) ? convertido : fallback;
+}
+
+function qualidadeDaLeitura(data){
+    const campos = [
+        "yaw",
+        "pitch",
+        "roll",
+        "iris_px",
+        "distancia_cm",
+        "centro_face",
+        "centro_face_offset",
+        "score_geometrico",
+        "ambiente_score",
+        "brilho",
+        "contraste",
+        "nitidez"
+    ];
+    const qualidade = {};
+    campos.forEach(campo => {
+        const valor = Number(data[campo]);
+        if(Number.isFinite(valor)){
+            qualidade[campo] = valor;
+        }
+    });
+    return qualidade;
 }
 
 function registrarLeitura(dp, dnpE, dnpD, score){
@@ -731,6 +757,7 @@ let loopIA = setInterval(async () => {
         const dnpE = numero(data.dnp_e);
         const dnpD = numero(data.dnp_d);
         const score = numero(data.score);
+        ultimaQualidade = qualidadeDaLeitura(data);
         registrarLeitura(dp, dnpE, dnpD, score);
 
         dpEl.innerText = dp.toFixed(1);
@@ -892,6 +919,7 @@ function salvarCaptura(){
         dnp_e: dnpEAtual,
         dnp_d: dnpDAtual,
         score: scoreAtual,
+        qualidade: {...ultimaQualidade},
         imagem: foto
     });
 

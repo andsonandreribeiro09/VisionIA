@@ -72,6 +72,7 @@ O script local usa:
 - resultado final: mediana das 3 capturas, para reduzir queda causada por uma captura isolada
 - foto enviada: reduzida para acelerar o salvamento pelo tunel
 - fator local de escala: 1.04, para compensar a tendencia do tablet medir DP um pouco abaixo
+- camada de qualidade em observacao: yaw, pitch, roll, iris, distancia, centro da face e ambiente sao salvos para auditoria, sem bloquear o fluxo
 
 Para alterar, defina estas variaveis no `.env.local`:
 

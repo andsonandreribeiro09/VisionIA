@@ -71,6 +71,16 @@ dados_medicao = {
     "confiavel": False,
     "distancia_cm": None,
     "iris_px": None,
+    "yaw": None,
+    "pitch": None,
+    "roll": None,
+    "centro_face": None,
+    "centro_face_offset": None,
+    "score_geometrico": None,
+    "ambiente_score": None,
+    "brilho": None,
+    "contraste": None,
+    "nitidez": None,
 }
 
 # -----------------------------
@@ -138,6 +148,16 @@ def resetar_medicao():
         "confiavel": False,
         "distancia_cm": None,
         "iris_px": None,
+        "yaw": None,
+        "pitch": None,
+        "roll": None,
+        "centro_face": None,
+        "centro_face_offset": None,
+        "score_geometrico": None,
+        "ambiente_score": None,
+        "brilho": None,
+        "contraste": None,
+        "nitidez": None,
         "validacao": {},
         "historico": [],
     })
@@ -157,6 +177,39 @@ def centro_iris(landmarks, indices, w, h):
     coords = np.array([[landmarks[i].x * w, landmarks[i].y * h] for i in indices])
     centro = cv2.fitEllipse(coords.astype(np.int32))[0]
     return int(centro[0]), int(centro[1])
+
+
+def limitar(valor, minimo, maximo):
+    return max(minimo, min(maximo, valor))
+
+
+def score_por_faixa(valor, minimo, ideal_min, ideal_max, maximo):
+    if valor < minimo or valor > maximo:
+        return 0
+    if ideal_min <= valor <= ideal_max:
+        return 100
+    if valor < ideal_min:
+        return round(((valor - minimo) / max(ideal_min - minimo, 1)) * 100, 1)
+    return round(((maximo - valor) / max(maximo - ideal_max, 1)) * 100, 1)
+
+
+def avaliar_ambiente(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    brilho = float(np.mean(gray))
+    contraste = float(np.std(gray))
+    nitidez = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    brilho_score = score_por_faixa(brilho, 45, 85, 190, 235)
+    contraste_score = score_por_faixa(contraste, 18, 35, 90, 125)
+    nitidez_score = score_por_faixa(nitidez, 20, 80, 900, 1600)
+    ambiente_score = (brilho_score + contraste_score + nitidez_score) / 3
+
+    return {
+        "brilho": round(brilho, 1),
+        "contraste": round(contraste, 1),
+        "nitidez": round(nitidez, 1),
+        "ambiente_score": round(ambiente_score, 1),
+    }
 
 # -----------------------------
 # PROCESSAMENTO PRINCIPAL
@@ -179,6 +232,7 @@ def processar_frame(frame):
     processar_frame.ultimo_timestamp = timestamp
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    ambiente = avaliar_ambiente(frame)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     result = detector.detect_for_video(mp_image, timestamp)
 
@@ -188,6 +242,7 @@ def processar_frame(frame):
         dados_medicao["status"] = "Medindo"
         dados_medicao["instrucao"] = "Posicione seu rosto"
         dados_medicao["iris_px"] = None
+        dados_medicao.update(ambiente)
         return frame
 
     lm = result.face_landmarks[0]
@@ -237,6 +292,12 @@ def processar_frame(frame):
     # ÂNGULO
     # -----------------------------
     angulo = np.degrees(np.arctan2(ry - ly, rx - lx))
+    eye_mid_x = (lx + rx) / 2
+    eye_mid_y = (ly + ry) / 2
+    dist_olhos_pose = max(1.0, np.linalg.norm([rx - lx, ry - ly]))
+    face_height = max(1.0, abs((lm[152].y * h) - (lm[10].y * h))) if len(lm) > 152 else max(1.0, h * 0.45)
+    yaw = np.degrees(np.arctan2(nx - eye_mid_x, dist_olhos_pose))
+    pitch = (((ny - eye_mid_y) / face_height) - 0.18) * 90
 
     # -----------------------------
     # ÍRIS
@@ -249,6 +310,7 @@ def processar_frame(frame):
         dados_medicao["status"] = "Medindo"
         dados_medicao["instrucao"] = "Aproxime o rosto"
         dados_medicao["iris_px"] = round(float(iris_px), 2)
+        dados_medicao.update(ambiente)
         return frame
 
     # -----------------------------
@@ -317,6 +379,8 @@ def processar_frame(frame):
     dp_px = np.linalg.norm([rx_opt - lx_opt, ry_opt - ly_opt])
 
     centro_face = np.clip(mx, min(lx_opt, rx_opt), max(lx_opt, rx_opt))
+    centro_ideal = (lx_opt + rx_opt) / 2
+    centro_face_offset = ((centro_face - centro_ideal) / max(dp_px, 1)) * 100
 
     dnp_e_px = abs(lx_opt - centro_face)
     dnp_d_px = abs(rx_opt - centro_face)
@@ -362,6 +426,16 @@ def processar_frame(frame):
 
     if dist_ok:
         score += 20
+
+    pose_score = 100
+    pose_score -= min(abs(yaw) * 3.5, 35)
+    pose_score -= min(abs(pitch) * 2.5, 25)
+    pose_score -= min(abs(angulo) * 4.0, 30)
+    pose_score -= min(abs(centro_face_offset) * 1.2, 25)
+    if distancia_cm is not None:
+        pose_score -= min(abs(distancia_cm - TARGET_DISTANCE_CM) * 2.0, 25)
+    pose_score = limitar(pose_score, 0, 100)
+    score_geometrico = round((pose_score * 0.7) + (ambiente["ambiente_score"] * 0.3), 1)
 
     # -----------------------------
     # ESTABILIDADE (🔥 MELHORADO)
@@ -431,6 +505,16 @@ def processar_frame(frame):
         "media": round(media, 2),
         "desvio": round(desvio, 3),
         "erro_max": round(erro_max, 2),
+        "yaw": round(float(yaw), 2),
+        "pitch": round(float(pitch), 2),
+        "roll": round(float(angulo), 2),
+        "centro_face": round(float(centro_face), 2),
+        "centro_face_offset": round(float(centro_face_offset), 2),
+        "score_geometrico": score_geometrico,
+        "ambiente_score": ambiente["ambiente_score"],
+        "brilho": ambiente["brilho"],
+        "contraste": ambiente["contraste"],
+        "nitidez": ambiente["nitidez"],
         "status": "APROVADO" if aprovado else "REPROVADO"
     }
     # =========================
@@ -486,6 +570,16 @@ def processar_frame(frame):
     dados_medicao["confiavel"] = confiavel or capturado
     dados_medicao["distancia_cm"] = round(distancia_cm, 1) if distancia_cm is not None else None
     dados_medicao["iris_px"] = round(float(iris_px), 2)
+    dados_medicao["yaw"] = round(float(yaw), 2)
+    dados_medicao["pitch"] = round(float(pitch), 2)
+    dados_medicao["roll"] = round(float(angulo), 2)
+    dados_medicao["centro_face"] = round(float(centro_face), 2)
+    dados_medicao["centro_face_offset"] = round(float(centro_face_offset), 2)
+    dados_medicao["score_geometrico"] = score_geometrico
+    dados_medicao["ambiente_score"] = ambiente["ambiente_score"]
+    dados_medicao["brilho"] = ambiente["brilho"]
+    dados_medicao["contraste"] = ambiente["contraste"]
+    dados_medicao["nitidez"] = ambiente["nitidez"]
     dados_medicao["iris_ok"] = bool(iris_ok)
     dados_medicao["olhos_ok"] = bool(olhos_ok)
     dados_medicao["cabeca_ok"] = bool(cabeca_ok)
