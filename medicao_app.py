@@ -56,6 +56,8 @@ def capture_ui_config():
         "stable_samples": env_int("VISIONAI_UI_STABLE_SAMPLES", 3 if modo_local else 4),
         "max_dp_spread": env_float("VISIONAI_UI_MAX_DP_SPREAD", 1.4 if modo_local else 2.0),
         "max_capture_gap": env_float("VISIONAI_UI_MAX_CAPTURE_GAP", 1.8 if modo_local else 3.0),
+        "photo_max_width": env_int("VISIONAI_UI_PHOTO_MAX_WIDTH", 720 if modo_local else 960),
+        "photo_quality": env_float("VISIONAI_UI_PHOTO_QUALITY", 0.68 if modo_local else 0.78),
     }
 
 
@@ -390,9 +392,10 @@ def salvar_lote():
         conn.close()
         return {"status": "erro", "msg": "Lote de medicoes invalido. Repita a captura."}
 
-    media = float(np.mean(dps))
-    dnp_e_media = float(np.mean(dnps_e))
-    dnp_d_media = float(np.mean(dnps_d))
+    usar_mediana = os.getenv("VISIONAI_USE_MEDIAN_RESULT", "1" if modo_local else "0") == "1"
+    media = float(np.median(dps) if usar_mediana else np.mean(dps))
+    dnp_e_media = float(np.median(dnps_e) if usar_mediana else np.mean(dnps_e))
+    dnp_d_media = float(np.median(dnps_d) if usar_mediana else np.mean(dnps_d))
     score_medio = float(np.mean(scores))
     desvio = float(np.std(dps))
     erro_max = float(max([abs(valor - media) for valor in dps]))
@@ -485,6 +488,7 @@ def salvar_lote():
         "media": round(media, 2),
         "desvio": round(desvio, 3),
         "erro_max": round(erro_max, 2),
+        "metodo": "mediana" if usar_mediana else "media",
         "status": status,
     }
 

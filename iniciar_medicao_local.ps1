@@ -16,20 +16,31 @@ if (Test-Path $envFile) {
     }
 }
 
-if (-not $env:DATABASE_URL) {
-    Write-Host ""
-    Write-Host "DATABASE_URL nao configurado."
-    Write-Host "Crie o arquivo .env.local na pasta do projeto usando .env.local.example como modelo."
-    Write-Host "Cole nele a URL completa do PostgreSQL do Render."
-    Write-Host ""
-    exit 1
-}
-
 $env:VISIONAI_APP = "medicao"
 $env:VISIONAI_LOCAL_MODE = "1"
-$env:VISIONAI_REQUIRE_DATABASE_URL = "1"
 $env:FLASK_DEBUG = "0"
 $env:PORT = if ($env:PORT) { $env:PORT } else { "5000" }
+
+$usarPostgresRender = ($env:VISIONAI_USE_RENDER_DB -eq "1") -or ($env:VISIONAI_DB_MODE -eq "render")
+if ($usarPostgresRender) {
+    if (-not $env:DATABASE_URL) {
+        Write-Host ""
+        Write-Host "DATABASE_URL nao configurado."
+        Write-Host "Crie o arquivo .env.local na pasta do projeto usando .env.local.example como modelo."
+        Write-Host "Cole nele a URL completa do PostgreSQL do Render."
+        Write-Host ""
+        exit 1
+    }
+    $env:VISIONAI_REQUIRE_DATABASE_URL = "1"
+} else {
+    Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+    $env:VISIONAI_REQUIRE_DATABASE_URL = "0"
+    $env:VISIONAI_DB_PATH = if ($env:VISIONAI_DB_PATH) { $env:VISIONAI_DB_PATH } else { Join-Path $projectDir "data\visionai_teste_local.db" }
+    $dbDir = Split-Path -Parent $env:VISIONAI_DB_PATH
+    if ($dbDir) {
+        New-Item -ItemType Directory -Path $dbDir -Force | Out-Null
+    }
+}
 
 $env:VISIONAI_CAPTURE_MIN_SCORE = if ($env:VISIONAI_CAPTURE_MIN_SCORE) { $env:VISIONAI_CAPTURE_MIN_SCORE } else { "82" }
 $env:VISIONAI_CAPTURE_RESET_SCORE = if ($env:VISIONAI_CAPTURE_RESET_SCORE) { $env:VISIONAI_CAPTURE_RESET_SCORE } else { "60" }
@@ -51,6 +62,9 @@ $env:VISIONAI_MAX_BATCH_STD_MM = if ($env:VISIONAI_MAX_BATCH_STD_MM) { $env:VISI
 $env:VISIONAI_VALIDATE_DP_RANGE = if ($env:VISIONAI_VALIDATE_DP_RANGE) { $env:VISIONAI_VALIDATE_DP_RANGE } else { "1" }
 $env:VISIONAI_MIN_CALIBRATION_SAMPLES = if ($env:VISIONAI_MIN_CALIBRATION_SAMPLES) { $env:VISIONAI_MIN_CALIBRATION_SAMPLES } else { "3" }
 $env:VISIONAI_MAX_CALIBRATION_FACTOR_DELTA = if ($env:VISIONAI_MAX_CALIBRATION_FACTOR_DELTA) { $env:VISIONAI_MAX_CALIBRATION_FACTOR_DELTA } else { "0.08" }
+$env:VISIONAI_USE_MEDIAN_RESULT = if ($env:VISIONAI_USE_MEDIAN_RESULT) { $env:VISIONAI_USE_MEDIAN_RESULT } else { "1" }
+$env:VISIONAI_UI_PHOTO_MAX_WIDTH = if ($env:VISIONAI_UI_PHOTO_MAX_WIDTH) { $env:VISIONAI_UI_PHOTO_MAX_WIDTH } else { "720" }
+$env:VISIONAI_UI_PHOTO_QUALITY = if ($env:VISIONAI_UI_PHOTO_QUALITY) { $env:VISIONAI_UI_PHOTO_QUALITY } else { "0.68" }
 
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
 if (-not $pythonCmd) {
@@ -63,13 +77,15 @@ if (-not $pythonCmd) {
 $pythonPath = & $pythonCmd.Source -c "import sys; print(sys.executable)"
 Write-Host "Python:      $pythonPath"
 
-& $pythonCmd.Source -c "import psycopg" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Instalando driver PostgreSQL psycopg[binary]..."
-    & $pythonCmd.Source -m pip install "psycopg[binary]"
-}
+if ($usarPostgresRender) {
+    & $pythonCmd.Source -c "import psycopg" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Instalando driver PostgreSQL psycopg[binary]..."
+        & $pythonCmd.Source -m pip install "psycopg[binary]"
+    }
 
-$psycopgVersion = & $pythonCmd.Source -c "import psycopg; print(psycopg.__version__)"
+    $psycopgVersion = & $pythonCmd.Source -c "import psycopg; print(psycopg.__version__)"
+}
 
 $localIp = Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias "Wi-Fi" -ErrorAction SilentlyContinue |
     Where-Object { $_.IPAddress -notlike "169.254.*" } |
@@ -80,8 +96,13 @@ Write-Host "URL local:   http://localhost:$($env:PORT)"
 if ($localIp) {
     Write-Host "URL rede:    http://$localIp`:$($env:PORT)"
 }
-Write-Host "Banco:       PostgreSQL Render"
-Write-Host "PostgreSQL:  psycopg $psycopgVersion"
+if ($usarPostgresRender) {
+    Write-Host "Banco:       PostgreSQL Render"
+    Write-Host "PostgreSQL:  psycopg $psycopgVersion"
+} else {
+    Write-Host "Banco:       SQLite local de teste"
+    Write-Host "Arquivo DB:  $($env:VISIONAI_DB_PATH)"
+}
 Write-Host "Captura:     score $($env:VISIONAI_UI_CAPTURE_SCORE_MIN), $($env:VISIONAI_UI_CAPTURE_HOLD_MS)ms, $($env:VISIONAI_UI_TOTAL_CAPTURES) capturas"
 Write-Host ""
 

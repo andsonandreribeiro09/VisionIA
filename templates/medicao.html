@@ -574,6 +574,8 @@ const REQUIRE_STABLE = Boolean(CAPTURE_CONFIG.require_stable ?? false);
 const STABLE_SAMPLES = Number(CAPTURE_CONFIG.stable_samples ?? 4);
 const MAX_DP_SPREAD = Number(CAPTURE_CONFIG.max_dp_spread ?? 2);
 const MAX_CAPTURE_GAP = Number(CAPTURE_CONFIG.max_capture_gap ?? 3);
+const CAPTURE_PHOTO_MAX_WIDTH = Number(CAPTURE_CONFIG.photo_max_width ?? 720);
+const CAPTURE_PHOTO_QUALITY = Number(CAPTURE_CONFIG.photo_quality ?? 0.68);
 let ultimoFrameOkEm = 0;
 let ultimaCapturaEm = 0;
 let falhasProcessamento = 0;
@@ -845,15 +847,18 @@ let loopIA = setInterval(async () => {
 function capturarFoto(){
 
     const video = document.getElementById("video");
+    const larguraVideo = video.videoWidth || 640;
+    const alturaVideo = video.videoHeight || 480;
+    const fator = Math.min(CAPTURE_PHOTO_MAX_WIDTH / larguraVideo, 1);
 
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    canvas.width = Math.round(larguraVideo * fator);
+    canvas.height = Math.round(alturaVideo * fator);
 
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    return canvas.toDataURL("image/jpeg");
+    return canvas.toDataURL("image/jpeg", CAPTURE_PHOTO_QUALITY);
 }
 
 
