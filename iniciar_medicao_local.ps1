@@ -36,9 +36,16 @@ if ($usarPostgresRender) {
     Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
     $env:VISIONAI_REQUIRE_DATABASE_URL = "0"
     $env:VISIONAI_DB_PATH = if ($env:VISIONAI_DB_PATH) { $env:VISIONAI_DB_PATH } else { Join-Path $projectDir "data\visionai_teste_local.db" }
+    $env:VISIONAI_DATA_DIR = if ($env:VISIONAI_DATA_DIR) { $env:VISIONAI_DATA_DIR } else { Join-Path $projectDir "data" }
     $dbDir = Split-Path -Parent $env:VISIONAI_DB_PATH
     if ($dbDir) {
         New-Item -ItemType Directory -Path $dbDir -Force | Out-Null
+    }
+    New-Item -ItemType Directory -Path $env:VISIONAI_DATA_DIR -Force | Out-Null
+    $csvAntigo = Join-Path $projectDir "pacientes_medicoes.csv"
+    $csvLocal = Join-Path $env:VISIONAI_DATA_DIR "pacientes_medicoes.csv"
+    if ((Test-Path $csvAntigo) -and -not (Test-Path $csvLocal)) {
+        Copy-Item -LiteralPath $csvAntigo -Destination $csvLocal
     }
 }
 
@@ -65,6 +72,7 @@ $env:VISIONAI_MAX_CALIBRATION_FACTOR_DELTA = if ($env:VISIONAI_MAX_CALIBRATION_F
 $env:VISIONAI_USE_MEDIAN_RESULT = if ($env:VISIONAI_USE_MEDIAN_RESULT) { $env:VISIONAI_USE_MEDIAN_RESULT } else { "1" }
 $env:VISIONAI_UI_PHOTO_MAX_WIDTH = if ($env:VISIONAI_UI_PHOTO_MAX_WIDTH) { $env:VISIONAI_UI_PHOTO_MAX_WIDTH } else { "720" }
 $env:VISIONAI_UI_PHOTO_QUALITY = if ($env:VISIONAI_UI_PHOTO_QUALITY) { $env:VISIONAI_UI_PHOTO_QUALITY } else { "0.68" }
+$env:VISIONAI_SCALE_MULTIPLIER = if ($env:VISIONAI_SCALE_MULTIPLIER) { $env:VISIONAI_SCALE_MULTIPLIER } else { "1.04" }
 
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
 if (-not $pythonCmd) {
@@ -102,8 +110,9 @@ if ($usarPostgresRender) {
 } else {
     Write-Host "Banco:       SQLite local de teste"
     Write-Host "Arquivo DB:  $($env:VISIONAI_DB_PATH)"
+    Write-Host "CSV local:   $(Join-Path $env:VISIONAI_DATA_DIR "pacientes_medicoes.csv")"
 }
-Write-Host "Captura:     score $($env:VISIONAI_UI_CAPTURE_SCORE_MIN), $($env:VISIONAI_UI_CAPTURE_HOLD_MS)ms, $($env:VISIONAI_UI_TOTAL_CAPTURES) capturas"
+Write-Host "Captura:     score $($env:VISIONAI_UI_CAPTURE_SCORE_MIN), $($env:VISIONAI_UI_CAPTURE_HOLD_MS)ms, $($env:VISIONAI_UI_TOTAL_CAPTURES) capturas, escala x$($env:VISIONAI_SCALE_MULTIPLIER)"
 Write-Host ""
 
 & $pythonCmd.Source app.py

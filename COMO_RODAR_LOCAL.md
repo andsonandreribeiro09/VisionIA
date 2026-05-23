@@ -8,6 +8,7 @@ O arquivo fica em:
 
 ```text
 data\visionai_teste_local.db
+data\pacientes_medicoes.csv
 ```
 
 Se quiser testar gravando direto no PostgreSQL Render, crie ou edite o `.env.local` com:
@@ -51,8 +52,10 @@ O script local usa:
 - calibracao facial so e aplicada quando tiver pelo menos 3 amostras confiaveis
 - DP muito fora da faixa segura pede nova medicao em vez de salvar
 - banco padrao: SQLite local de teste
+- CSV local: `data\pacientes_medicoes.csv`
 - resultado final: mediana das 3 capturas, para reduzir queda causada por uma captura isolada
 - foto enviada: reduzida para acelerar o salvamento pelo tunel
+- fator local de escala: 1.04, para compensar a tendencia do tablet medir DP um pouco abaixo
 
 Para alterar, defina estas variaveis no `.env.local`:
 
@@ -63,4 +66,5 @@ VISIONAI_UI_TOTAL_CAPTURES=3
 VISIONAI_UI_PHOTO_MAX_WIDTH=720
 VISIONAI_UI_PHOTO_QUALITY=0.68
 VISIONAI_USE_MEDIAN_RESULT=1
+VISIONAI_SCALE_MULTIPLIER=1.04
 ```

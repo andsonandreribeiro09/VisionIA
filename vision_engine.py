@@ -25,6 +25,7 @@ def _env_float(nome, padrao):
 IPD_REAL_MM = _env_float("VISIONAI_IPD_REAL_MM", 63.0)
 IRIS_REAL_MM = _env_float("VISIONAI_IRIS_REAL_MM", 11.7)
 TARGET_DISTANCE_CM = _env_float("VISIONAI_TARGET_DISTANCE_CM", 40.0)
+SCALE_MULTIPLIER = _env_float("VISIONAI_SCALE_MULTIPLIER", 1.0)
 MIN_MM_PER_PX = _env_float("VISIONAI_MIN_MM_PER_PX", 0.08)
 MAX_MM_PER_PX = _env_float("VISIONAI_MAX_MM_PER_PX", 0.80)
 CAPTURE_MIN_SCORE = _env_float("VISIONAI_CAPTURE_MIN_SCORE", 75.0)
@@ -271,7 +272,7 @@ def processar_frame(frame):
     else:
         escala_suave = 0.9 * escala_suave + 0.1 * escala_raw
 
-    escala = np.clip(escala_suave, MIN_MM_PER_PX, MAX_MM_PER_PX)
+    escala = np.clip(escala_suave * SCALE_MULTIPLIER, MIN_MM_PER_PX, MAX_MM_PER_PX)
 
     distancia_cm = None
     if IRIS_PX_AT_TARGET_DISTANCE > 0:
