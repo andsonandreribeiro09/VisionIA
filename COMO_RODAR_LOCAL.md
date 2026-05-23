@@ -38,15 +38,17 @@ Abra no tablet a URL `https://...trycloudflare.com` que aparecer.
 O script local usa:
 
 - score minimo: 82
-- tempo parado: 1800 ms
-- capturas por medicao: 6
+- tempo parado: 900 ms
+- capturas por medicao: 3
 - lote aprovado apenas quando as leituras ficam com baixa variacao
+- calibracao facial so e aplicada quando tiver pelo menos 3 amostras confiaveis
+- DP muito fora da faixa segura pede nova medicao em vez de salvar
 - banco obrigatorio: PostgreSQL Render
 
 Para alterar, defina estas variaveis no `.env.local`:
 
 ```text
 VISIONAI_UI_CAPTURE_SCORE_MIN=82
-VISIONAI_UI_CAPTURE_HOLD_MS=1800
-VISIONAI_UI_TOTAL_CAPTURES=6
+VISIONAI_UI_CAPTURE_HOLD_MS=900
+VISIONAI_UI_TOTAL_CAPTURES=3
 ```

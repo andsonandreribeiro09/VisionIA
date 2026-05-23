@@ -10,6 +10,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 from vision_engine import dados_medicao, processar_frame, resetar_medicao
 from visionai_shared import (
     aplicar_calibracao_valor,
+    calibracao_pronta,
     calcular_idade_por_data,
     database_config,
     debug_log,
@@ -48,14 +49,33 @@ def capture_ui_config():
     return {
         "score_min": env_float("VISIONAI_UI_CAPTURE_SCORE_MIN", 82 if modo_local else 70),
         "reset_score": env_float("VISIONAI_UI_CAPTURE_RESET_SCORE", 60 if modo_local else 45),
-        "hold_ms": env_int("VISIONAI_UI_CAPTURE_HOLD_MS", 1800 if modo_local else 450),
-        "total": env_int("VISIONAI_UI_TOTAL_CAPTURES", 6 if modo_local else 4),
-        "cooldown_ms": env_int("VISIONAI_UI_CAPTURE_COOLDOWN_MS", 900 if modo_local else 250),
+        "hold_ms": env_int("VISIONAI_UI_CAPTURE_HOLD_MS", 900 if modo_local else 450),
+        "total": env_int("VISIONAI_UI_TOTAL_CAPTURES", 3 if modo_local else 4),
+        "cooldown_ms": env_int("VISIONAI_UI_CAPTURE_COOLDOWN_MS", 450 if modo_local else 250),
         "require_stable": os.getenv("VISIONAI_UI_REQUIRE_STABLE", "1" if modo_local else "0") == "1",
-        "stable_samples": env_int("VISIONAI_UI_STABLE_SAMPLES", 6 if modo_local else 4),
-        "max_dp_spread": env_float("VISIONAI_UI_MAX_DP_SPREAD", 1.2 if modo_local else 2.0),
-        "max_capture_gap": env_float("VISIONAI_UI_MAX_CAPTURE_GAP", 1.6 if modo_local else 3.0),
+        "stable_samples": env_int("VISIONAI_UI_STABLE_SAMPLES", 3 if modo_local else 4),
+        "max_dp_spread": env_float("VISIONAI_UI_MAX_DP_SPREAD", 1.4 if modo_local else 2.0),
+        "max_capture_gap": env_float("VISIONAI_UI_MAX_CAPTURE_GAP", 1.8 if modo_local else 3.0),
     }
+
+
+def faixa_dp_paciente(paciente):
+    sexo = ((paciente or {}).get("sexo") or "outro").lower().strip()
+    idade = (paciente or {}).get("idade")
+
+    if idade is None:
+        idade = calcular_idade_por_data((paciente or {}).get("data_nascimento"))
+
+    if idade is not None and idade < 18:
+        return "crianca", 40, 58, 36, 64
+
+    if sexo == "masculino":
+        return "adulto", 62, 70, 58, 78
+
+    if sexo == "feminino":
+        return "adulto", 58, 66, 54, 74
+
+    return "adulto", 58, 70, 54, 78
 
 
 @app.route("/")
@@ -205,6 +225,7 @@ def dados():
     dp_min, dp_max = 50, 80
     idade = None
     sexo = "outro"
+    paciente = None
 
     if paciente_id:
         conn = get_db()
@@ -221,17 +242,13 @@ def dados():
             sexo = (paciente.get("sexo") or "outro").lower().strip()
             idade = paciente.get("idade") or calcular_idade_por_data(paciente.get("data_nascimento"))
 
-    if idade is not None and idade < 18:
-        faixa = "crianca"
-        dp_min, dp_max = 40, 58
+    if paciente:
+        faixa, dp_min, dp_max, _, _ = faixa_dp_paciente(paciente)
     elif idade is not None:
-        faixa = "adulto"
-        if sexo == "masculino":
-            dp_min, dp_max = 62, 70
-        elif sexo == "feminino":
-            dp_min, dp_max = 58, 66
-        else:
-            dp_min, dp_max = 58, 70
+        faixa, dp_min, dp_max, _, _ = faixa_dp_paciente({
+            "sexo": sexo,
+            "idade": idade,
+        })
 
     dp_atual = dados_medicao.get("dp")
     status_dp = "indefinido"
@@ -324,9 +341,9 @@ def salvar_lote():
         return {"status": "erro", "msg": "Nenhuma medicao recebida"}
 
     modo_local = os.getenv("VISIONAI_LOCAL_MODE", "0") == "1"
-    min_capturas = env_int("VISIONAI_MIN_BATCH_CAPTURES", env_int("VISIONAI_UI_TOTAL_CAPTURES", 6 if modo_local else 4))
-    max_erro_lote = env_float("VISIONAI_MAX_BATCH_ERRO_MM", 1.6 if modo_local else 2.0)
-    max_desvio_lote = env_float("VISIONAI_MAX_BATCH_STD_MM", 0.9 if modo_local else 1.1)
+    min_capturas = env_int("VISIONAI_MIN_BATCH_CAPTURES", env_int("VISIONAI_UI_TOTAL_CAPTURES", 3 if modo_local else 4))
+    max_erro_lote = env_float("VISIONAI_MAX_BATCH_ERRO_MM", 1.8 if modo_local else 2.0)
+    max_desvio_lote = env_float("VISIONAI_MAX_BATCH_STD_MM", 1.0 if modo_local else 1.1)
 
     if len(medicoes) < min_capturas:
         return {
@@ -392,6 +409,41 @@ def salvar_lote():
             "desvio": round(desvio, 2),
         }
 
+    cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
+    paciente_calibracao = cursor.fetchone()
+    if not paciente_calibracao:
+        conn.close()
+        return {"status": "erro", "msg": "Paciente nao encontrado. Cadastre novamente."}
+
+    sexo_calibracao, faixa_calibracao = perfil_calibracao_paciente(paciente_calibracao)
+    calibracao = obter_calibracao_facial(cursor, sexo_calibracao, faixa_calibracao)
+    usar_calibracao = calibracao_pronta(
+        calibracao,
+        env_int("VISIONAI_MIN_CALIBRATION_SAMPLES", 3),
+        env_float("VISIONAI_MAX_CALIBRATION_FACTOR_DELTA", 0.08),
+        env_float("VISIONAI_MAX_CALIBRATION_ERROR_MM", 1.2),
+    )
+
+    dp_final = aplicar_calibracao_valor(media, calibracao.get("fator_dp"), usar_calibracao)
+    dnp_e_final = aplicar_calibracao_valor(dnp_e_media, calibracao.get("fator_dnp_e"), usar_calibracao)
+    dnp_d_final = aplicar_calibracao_valor(dnp_d_media, calibracao.get("fator_dnp_d"), usar_calibracao)
+
+    _, dp_min_ideal, dp_max_ideal, dp_min_seguro, dp_max_seguro = faixa_dp_paciente(paciente_calibracao)
+    validar_faixa = os.getenv("VISIONAI_VALIDATE_DP_RANGE", "1" if modo_local else "0") == "1"
+    if validar_faixa and not (dp_min_seguro <= dp_final <= dp_max_seguro):
+        conn.close()
+        return {
+            "status": "erro",
+            "msg": (
+                f"DP fora da faixa segura ({dp_final:.1f} mm). "
+                "Refaca a medicao com o rosto centralizado e distancia correta."
+            ),
+            "dp": round(dp_final, 2),
+            "dp_original": round(media, 2),
+            "dp_min": dp_min_ideal,
+            "dp_max": dp_max_ideal,
+        }
+
     os.makedirs("static/fotos", exist_ok=True)
 
     for medicao_item in capturas_preparadas:
@@ -415,15 +467,6 @@ def salvar_lote():
             "foto": caminho,
         })
 
-    cursor.execute("SELECT * FROM pacientes WHERE id=?", (paciente_id,))
-    paciente_calibracao = cursor.fetchone()
-    sexo_calibracao, faixa_calibracao = perfil_calibracao_paciente(paciente_calibracao)
-    calibracao = obter_calibracao_facial(cursor, sexo_calibracao, faixa_calibracao)
-
-    dp_final = aplicar_calibracao_valor(media, calibracao.get("fator_dp"))
-    dnp_e_final = aplicar_calibracao_valor(dnp_e_media, calibracao.get("fator_dnp_e"))
-    dnp_d_final = aplicar_calibracao_valor(dnp_d_media, calibracao.get("fator_dnp_d"))
-
     calibracao_aplicada = {
         "sexo": sexo_calibracao,
         "faixa": faixa_calibracao,
@@ -431,6 +474,7 @@ def salvar_lote():
         "fator_dp": round(float(calibracao.get("fator_dp") or 1), 5),
         "fator_dnp_e": round(float(calibracao.get("fator_dnp_e") or 1), 5),
         "fator_dnp_d": round(float(calibracao.get("fator_dnp_d") or 1), 5),
+        "aplicada": usar_calibracao,
         "dp_original": round(media, 2),
         "dnp_e_original": round(dnp_e_media, 2),
         "dnp_d_original": round(dnp_d_media, 2),

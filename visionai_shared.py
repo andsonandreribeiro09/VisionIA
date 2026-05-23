@@ -256,12 +256,41 @@ def obter_calibracao_facial(cursor, sexo, faixa):
     return calibracao
 
 
-def aplicar_calibracao_valor(valor, fator):
-    return round(float(valor or 0) * float(fator or 1), 2)
+def fator_calibracao_aplicavel(fator, limite_delta=0.08):
+    try:
+        fator = float(fator or 1)
+    except (TypeError, ValueError):
+        return False
+    return (1 - limite_delta) <= fator <= (1 + limite_delta)
+
+
+def calibracao_pronta(calibracao, min_amostras=3, limite_delta=0.08, max_erro_medio=1.2):
+    try:
+        amostras = int((calibracao or {}).get("amostras") or 0)
+        erro_medio = float((calibracao or {}).get("erro_medio") or 0)
+    except (TypeError, ValueError):
+        return False
+
+    fatores = [
+        (calibracao or {}).get("fator_dp"),
+        (calibracao or {}).get("fator_dnp_e"),
+        (calibracao or {}).get("fator_dnp_d"),
+    ]
+
+    return (
+        amostras >= min_amostras
+        and erro_medio <= max_erro_medio
+        and all(fator_calibracao_aplicavel(fator, limite_delta) for fator in fatores)
+    )
+
+
+def aplicar_calibracao_valor(valor, fator, usar=True):
+    fator_final = float(fator or 1) if usar else 1.0
+    return round(float(valor or 0) * fator_final, 2)
 
 
 def fator_calibracao_valido(fator):
-    return 0.70 <= fator <= 1.30
+    return 0.90 <= fator <= 1.10
 
 
 def recalcular_calibracao_facial(cursor):
@@ -311,6 +340,7 @@ __all__ = [
     "DATA_DIR",
     "BASE_DIR",
     "aplicar_calibracao_valor",
+    "calibracao_pronta",
     "calcular_idade_por_data",
     "carregar_paciente",
     "database_config",
