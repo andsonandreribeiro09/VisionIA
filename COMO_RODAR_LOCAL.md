@@ -41,6 +41,22 @@ Abra outro PowerShell na pasta do projeto e rode:
 
 Abra no tablet a URL `https://...trycloudflare.com` que aparecer.
 
+## 4. Abrir o laboratorio local
+
+Abra outro PowerShell na pasta do projeto e rode:
+
+```powershell
+.\iniciar_laboratorio_local.ps1
+```
+
+No computador da loja, abra:
+
+```text
+http://localhost:5001/laboratorio
+```
+
+Esse painel local lê o mesmo banco SQLite de teste usado pela medição local.
+
 ## Parametros do modo local
 
 O script local usa:
