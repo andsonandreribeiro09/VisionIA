@@ -19,7 +19,7 @@ if (Test-Path $envFile) {
 $env:VISIONAI_APP = "medicao"
 $env:VISIONAI_LOCAL_MODE = "1"
 $env:FLASK_DEBUG = "0"
-$env:PORT = if ($env:PORT) { $env:PORT } else { "5000" }
+$env:PORT = if ($env:VISIONAI_MEDICAO_PORT) { $env:VISIONAI_MEDICAO_PORT } else { "5000" }
 
 $usarPostgresRender = ($env:VISIONAI_USE_RENDER_DB -eq "1") -or ($env:VISIONAI_DB_MODE -eq "render")
 if ($usarPostgresRender) {

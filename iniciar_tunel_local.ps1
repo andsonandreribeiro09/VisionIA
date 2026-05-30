@@ -1,6 +1,12 @@
 $ErrorActionPreference = "Stop"
 
-$port = if ($env:PORT) { $env:PORT } else { "5000" }
+$port = if ($env:VISIONAI_TUNNEL_PORT) {
+    $env:VISIONAI_TUNNEL_PORT
+} elseif ($env:VISIONAI_MEDICAO_PORT) {
+    $env:VISIONAI_MEDICAO_PORT
+} else {
+    "5000"
+}
 $cloudflared = Get-Command cloudflared -ErrorAction SilentlyContinue
 
 if ($cloudflared) {
@@ -18,8 +24,11 @@ if (-not $cloudflaredPath) {
     exit 1
 }
 
-Write-Host "Abrindo tunel HTTPS para http://localhost:$port"
+Write-Host "Abrindo tunel HTTPS da medicao para http://localhost:$port"
 Write-Host "Copie a URL https://...trycloudflare.com que aparecer e abra no tablet."
 Write-Host ""
 
 & $cloudflaredPath tunnel --url "http://localhost:$port"
+
+
+# .\iniciar_tunel_local.ps1
