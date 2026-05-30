@@ -35,8 +35,8 @@ if ($usarPostgresRender) {
 } else {
     Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
     $env:VISIONAI_REQUIRE_DATABASE_URL = "0"
-    $env:VISIONAI_DB_PATH = if ($env:VISIONAI_DB_PATH) { $env:VISIONAI_DB_PATH } else { Join-Path $projectDir "data\visionai_teste_local.db" }
-    $env:VISIONAI_DATA_DIR = if ($env:VISIONAI_DATA_DIR) { $env:VISIONAI_DATA_DIR } else { Join-Path $projectDir "data" }
+    $env:VISIONAI_DB_PATH = if ($env:VISIONAI_LOCAL_DB_PATH) { $env:VISIONAI_LOCAL_DB_PATH } else { Join-Path $projectDir "data\visionai_teste_local.db" }
+    $env:VISIONAI_DATA_DIR = if ($env:VISIONAI_LOCAL_DATA_DIR) { $env:VISIONAI_LOCAL_DATA_DIR } else { Join-Path $projectDir "data" }
     $dbDir = Split-Path -Parent $env:VISIONAI_DB_PATH
     if ($dbDir) {
         New-Item -ItemType Directory -Path $dbDir -Force | Out-Null
