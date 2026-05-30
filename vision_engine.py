@@ -42,7 +42,7 @@ CAPTURED_RESET_SECONDS = _env_float("VISIONAI_CAPTURED_RESET_SECONDS", 3.0)
 options = vision.FaceLandmarkerOptions(
     base_options=BaseOptions(model_asset_path="face_landmarker.task"),
     running_mode=vision.RunningMode.VIDEO,
-    num_faces=1,
+    num_faces=2,
     output_face_blendshapes=False,
     output_facial_transformation_matrixes=False
 )
@@ -81,6 +81,8 @@ dados_medicao = {
     "brilho": None,
     "contraste": None,
     "nitidez": None,
+    "face_count": 0,
+    "face_ok": False,
 }
 
 # -----------------------------
@@ -158,6 +160,8 @@ def resetar_medicao():
         "brilho": None,
         "contraste": None,
         "nitidez": None,
+        "face_count": 0,
+        "face_ok": False,
         "validacao": {},
         "historico": [],
     })
@@ -236,12 +240,16 @@ def processar_frame(frame):
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     result = detector.detect_for_video(mp_image, timestamp)
 
-    if not result.face_landmarks:
+    face_count = len(result.face_landmarks or [])
+
+    if face_count != 1:
         resetar_medicao()  # 🔥 AQUI
         dados_medicao["score"] = 0
         dados_medicao["status"] = "Medindo"
-        dados_medicao["instrucao"] = "Posicione seu rosto"
+        dados_medicao["instrucao"] = "Deixe apenas o paciente no quadro" if face_count > 1 else "Posicione seu rosto"
         dados_medicao["iris_px"] = None
+        dados_medicao["face_count"] = face_count
+        dados_medicao["face_ok"] = False
         dados_medicao.update(ambiente)
         return frame
 
@@ -580,6 +588,8 @@ def processar_frame(frame):
     dados_medicao["brilho"] = ambiente["brilho"]
     dados_medicao["contraste"] = ambiente["contraste"]
     dados_medicao["nitidez"] = ambiente["nitidez"]
+    dados_medicao["face_count"] = face_count
+    dados_medicao["face_ok"] = True
     dados_medicao["iris_ok"] = bool(iris_ok)
     dados_medicao["olhos_ok"] = bool(olhos_ok)
     dados_medicao["cabeca_ok"] = bool(cabeca_ok)

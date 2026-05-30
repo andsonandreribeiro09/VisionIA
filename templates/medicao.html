@@ -574,6 +574,7 @@ const REQUIRE_STABLE = Boolean(CAPTURE_CONFIG.require_stable ?? false);
 const STABLE_SAMPLES = Number(CAPTURE_CONFIG.stable_samples ?? 4);
 const MAX_DP_SPREAD = Number(CAPTURE_CONFIG.max_dp_spread ?? 2);
 const MAX_CAPTURE_GAP = Number(CAPTURE_CONFIG.max_capture_gap ?? 3);
+const GEOMETRY_SCORE_MIN = Number(CAPTURE_CONFIG.geometry_score_min ?? 0);
 const CAPTURE_PHOTO_MAX_WIDTH = Number(CAPTURE_CONFIG.photo_max_width ?? 720);
 const CAPTURE_PHOTO_QUALITY = Number(CAPTURE_CONFIG.photo_quality ?? 0.68);
 let ultimoFrameOkEm = 0;
@@ -604,6 +605,9 @@ function qualidadeDaLeitura(data){
     ];
     const qualidade = {};
     campos.forEach(campo => {
+        if(data[campo] === null || data[campo] === undefined || data[campo] === ""){
+            return;
+        }
         const valor = Number(data[campo]);
         if(Number.isFinite(valor)){
             qualidade[campo] = valor;
@@ -797,7 +801,10 @@ let loopIA = setInterval(async () => {
         // =========================
         const frameRecente = Date.now() - ultimoFrameOkEm < 1600;
         const medidasValidas = dp > 0 && dnpE > 0 && dnpD > 0;
-        const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false;
+        const scoreGeometrico = numero(data.score_geometrico);
+        const geometriaOk = GEOMETRY_SCORE_MIN <= 0 || scoreGeometrico >= GEOMETRY_SCORE_MIN;
+        const faceOk = data.face_ok !== false && Number(data.face_count ?? 1) === 1;
+        const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false && faceOk && geometriaOk;
         const estavel = leituraEstavel();
         const estabilidadeOk = !REQUIRE_STABLE || (data.confiavel && estavel);
         const leituraBoa = frameRecente && medidasValidas && posicaoOk && estabilidadeOk && score >= CAPTURE_SCORE_MIN;
@@ -806,6 +813,14 @@ let loopIA = setInterval(async () => {
             faceGuide.style.borderColor = "lime";
             instrucaoEl.innerText = "Perfeito! Nao se mova...";
         } 
+        else if(frameRecente && !faceOk){
+            faceGuide.style.borderColor = "red";
+            instrucaoEl.innerText = "Deixe apenas o paciente no quadro";
+        }
+        else if(frameRecente && !geometriaOk){
+            faceGuide.style.borderColor = "yellow";
+            instrucaoEl.innerText = "Centralize o rosto e endireite a cabeca";
+        }
         else if(score > CAPTURE_RESET_SCORE && frameRecente){
             faceGuide.style.borderColor = "yellow";
             instrucaoEl.innerText = estavel ? (data.instrucao || "Ajuste levemente...") : "Estabilizando leitura...";
@@ -925,6 +940,10 @@ function salvarCaptura(){
 
     ultimaCapturaEm = agora;
     statusEl.innerText = `Captura ${Math.min(medicoes.length, TOTAL_CAPTURAS)}/${TOTAL_CAPTURAS}`;
+    if(medicoes.length < TOTAL_CAPTURAS){
+        leiturasRecentes = [];
+        fetch("/reset_captura_engine", { method: "POST" }).catch(() => {});
+    }
     return true;
 }
 
