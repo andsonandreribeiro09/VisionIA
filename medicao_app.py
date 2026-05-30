@@ -56,7 +56,7 @@ def capture_ui_config():
         "stable_samples": env_int("VISIONAI_UI_STABLE_SAMPLES", 3 if modo_local else 4),
         "max_dp_spread": env_float("VISIONAI_UI_MAX_DP_SPREAD", 1.4 if modo_local else 2.0),
         "max_capture_gap": env_float("VISIONAI_UI_MAX_CAPTURE_GAP", 1.8 if modo_local else 3.0),
-        "geometry_score_min": env_float("VISIONAI_UI_MIN_GEOMETRY_SCORE", 75 if modo_local else 0),
+        "geometry_score_min": env_float("VISIONAI_UI_MIN_GEOMETRY_SCORE", 65 if modo_local else 0),
         "photo_max_width": env_int("VISIONAI_UI_PHOTO_MAX_WIDTH", 720 if modo_local else 960),
         "photo_quality": env_float("VISIONAI_UI_PHOTO_QUALITY", 0.68 if modo_local else 0.78),
     }
@@ -461,7 +461,7 @@ def salvar_lote():
     desvio = float(np.std(dps))
     erro_max = float(max([abs(valor - media) for valor in dps]))
     qualidade_resumo = resumir_qualidade(capturas_preparadas)
-    min_score_geometrico = env_float("VISIONAI_MIN_BATCH_GEOMETRY_SCORE", 75 if modo_local else 0)
+    min_score_geometrico = env_float("VISIONAI_MIN_BATCH_GEOMETRY_SCORE", 65 if modo_local else 0)
     score_geometrico = qualidade_resumo.get("score_geometrico")
 
     if min_score_geometrico > 0 and score_geometrico is not None and score_geometrico < min_score_geometrico:

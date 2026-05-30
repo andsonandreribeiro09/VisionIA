@@ -35,6 +35,7 @@ MIN_STABLE_FRAMES = int(_env_float("VISIONAI_MIN_STABLE_FRAMES", 4))
 MIN_STABLE_SECONDS = _env_float("VISIONAI_MIN_STABLE_SECONDS", 0.55)
 IRIS_PX_AT_TARGET_DISTANCE = _env_float("VISIONAI_IRIS_PX_AT_40CM", 0.0)
 CAPTURED_RESET_SECONDS = _env_float("VISIONAI_CAPTURED_RESET_SECONDS", 3.0)
+SECONDARY_FACE_MAX_RATIO = _env_float("VISIONAI_SECONDARY_FACE_MAX_RATIO", 0.18)
 
 # -----------------------------
 # CONFIG MEDIAPIPE
@@ -105,6 +106,12 @@ def olho_aberto(landmarks, indices, w, h):
     minimo_px = max(2.0, h * 0.0035)
 
     return abertura_px >= minimo_px or abertura_relativa >= 0.045
+
+
+def area_rosto(landmarks, w, h):
+    xs = [p.x * w for p in landmarks]
+    ys = [p.y * h for p in landmarks]
+    return max(0.0, max(xs) - min(xs)) * max(0.0, max(ys) - min(ys))
 
 # -----------------------------
 # SUAVIZAÇÃO
@@ -240,20 +247,38 @@ def processar_frame(frame):
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     result = detector.detect_for_video(mp_image, timestamp)
 
-    face_count = len(result.face_landmarks or [])
+    faces = result.face_landmarks or []
+    face_count = len(faces)
 
-    if face_count != 1:
+    if not faces:
         resetar_medicao()  # 🔥 AQUI
         dados_medicao["score"] = 0
         dados_medicao["status"] = "Medindo"
-        dados_medicao["instrucao"] = "Deixe apenas o paciente no quadro" if face_count > 1 else "Posicione seu rosto"
+        dados_medicao["instrucao"] = "Posicione seu rosto"
         dados_medicao["iris_px"] = None
         dados_medicao["face_count"] = face_count
         dados_medicao["face_ok"] = False
         dados_medicao.update(ambiente)
         return frame
 
-    lm = result.face_landmarks[0]
+    faces_por_area = sorted(
+        [(area_rosto(face, w, h), face) for face in faces],
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    area_principal, lm = faces_por_area[0]
+    segunda_razao = (faces_por_area[1][0] / area_principal) if face_count > 1 and area_principal > 0 else 0
+
+    if face_count > 1 and segunda_razao >= SECONDARY_FACE_MAX_RATIO:
+        resetar_medicao()
+        dados_medicao["score"] = 0
+        dados_medicao["status"] = "Medindo"
+        dados_medicao["instrucao"] = "Deixe apenas o paciente no quadro"
+        dados_medicao["iris_px"] = None
+        dados_medicao["face_count"] = face_count
+        dados_medicao["face_ok"] = False
+        dados_medicao.update(ambiente)
+        return frame
 
     # -----------------------------
     # LANDMARKS

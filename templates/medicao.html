@@ -803,7 +803,7 @@ let loopIA = setInterval(async () => {
         const medidasValidas = dp > 0 && dnpE > 0 && dnpD > 0;
         const scoreGeometrico = numero(data.score_geometrico);
         const geometriaOk = GEOMETRY_SCORE_MIN <= 0 || scoreGeometrico >= GEOMETRY_SCORE_MIN;
-        const faceOk = data.face_ok !== false && Number(data.face_count ?? 1) === 1;
+        const faceOk = data.face_ok !== false;
         const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false && faceOk && geometriaOk;
         const estavel = leituraEstavel();
         const estabilidadeOk = !REQUIRE_STABLE || (data.confiavel && estavel);
