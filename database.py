@@ -294,6 +294,10 @@ def criar_tabelas_sqlite(cursor):
         erro_dp REAL,
         erro_dnp_e REAL,
         erro_dnp_d REAL,
+        erro_max REAL,
+        usada_no_fator INTEGER DEFAULT 1,
+        status TEXT DEFAULT 'usada',
+        motivo TEXT,
         criado_em TEXT DEFAULT CURRENT_TIMESTAMP
     )
     """)
@@ -409,6 +413,10 @@ def criar_tabelas_postgres(cursor):
         erro_dp REAL,
         erro_dnp_e REAL,
         erro_dnp_d REAL,
+        erro_max REAL,
+        usada_no_fator INTEGER DEFAULT 1,
+        status TEXT DEFAULT 'usada',
+        motivo TEXT,
         criado_em TEXT DEFAULT (CURRENT_TIMESTAMP::text)
     )
     """)
@@ -462,6 +470,16 @@ def migrar_colunas(cursor, backend):
     ]:
         if nome not in colunas_medicoes:
             cursor.execute(f"ALTER TABLE medicoes ADD COLUMN {nome} {tipo}")
+
+    colunas_amostras = colunas_tabela(cursor, backend, "calibracao_facial_amostras")
+    for nome, tipo in [
+        ("erro_max", "REAL"),
+        ("usada_no_fator", "INTEGER DEFAULT 1"),
+        ("status", "TEXT DEFAULT 'usada'"),
+        ("motivo", "TEXT"),
+    ]:
+        if nome not in colunas_amostras:
+            cursor.execute(f"ALTER TABLE calibracao_facial_amostras ADD COLUMN {nome} {tipo}")
 
 
 def preencher_ods_faltantes(cursor):

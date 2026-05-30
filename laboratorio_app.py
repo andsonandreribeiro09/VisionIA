@@ -589,90 +589,91 @@ def laboratorio_calibracao():
                     fator_dnp_e = dnp_e_real / dnp_e_camera
                     fator_dnp_d = dnp_d_real / dnp_d_camera
 
-                    if not all(fator_calibracao_valido(f) for f in [fator_dp, fator_dnp_e, fator_dnp_d]):
-                        erro = "A diferenca ficou muito alta. Confira o ODS e as medidas reais."
+                    sexo, faixa = perfil_calibracao_paciente(medicao_post)
+                    usar_no_fator = all(fator_calibracao_valido(f) for f in [fator_dp, fator_dnp_e, fator_dnp_d])
+                    usada_no_fator = 1 if usar_no_fator else 0
+                    status_amostra = "usada" if usar_no_fator else "historico"
+                    motivo_amostra = "" if usar_no_fator else "fora_margem_segura"
+
+                    erro_dp = abs(dp_real - dp_camera)
+                    erro_dnp_e = abs(dnp_e_real - dnp_e_camera)
+                    erro_dnp_d = abs(dnp_d_real - dnp_d_camera)
+                    erro_max = max(erro_dp, erro_dnp_e, erro_dnp_d)
+
+                    if usar_no_fator:
+                        cursor.execute("""
+                            UPDATE calibracao_facial_amostras
+                            SET usada_no_fator=0,
+                                status='substituida',
+                                motivo='substituida_por_nova_amostra'
+                            WHERE medicao_id=? AND COALESCE(usada_no_fator, 1)=1
+                        """, (medicao_post.get("id"),))
+
+                    cursor.execute("""
+                        INSERT INTO calibracao_facial_amostras
+                        (medicao_id, ods, paciente_id, sexo, faixa,
+                         dp_camera, dnp_e_camera, dnp_d_camera,
+                         dp_real, dnp_e_real, dnp_d_real,
+                         fator_dp, fator_dnp_e, fator_dnp_d,
+                         erro_dp, erro_dnp_e, erro_dnp_d, erro_max,
+                         usada_no_fator, status, motivo)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        medicao_post.get("id"),
+                        medicao_post.get("ods"),
+                        medicao_post.get("paciente_id"),
+                        sexo,
+                        faixa,
+                        dp_camera,
+                        dnp_e_camera,
+                        dnp_d_camera,
+                        dp_real,
+                        dnp_e_real,
+                        dnp_d_real,
+                        fator_dp,
+                        fator_dnp_e,
+                        fator_dnp_d,
+                        erro_dp,
+                        erro_dnp_e,
+                        erro_dnp_d,
+                        erro_max,
+                        usada_no_fator,
+                        status_amostra,
+                        motivo_amostra,
+                    ))
+
+                    recalcular_calibracao_facial(cursor)
+                    atualizada = obter_calibracao_facial(cursor, sexo, faixa)
+                    total_ativo = int(atualizada.get("amostras") or 0)
+
+                    cursor.execute("""
+                        UPDATE medicoes
+                        SET calibracao_json=?
+                        WHERE id=?
+                    """, (
+                        json.dumps({
+                            "amostra_manual_salva": True,
+                            "usada_no_fator": bool(usada_no_fator),
+                            "status": status_amostra,
+                            "motivo": motivo_amostra,
+                            "dp_real": dp_real,
+                            "dnp_e_real": dnp_e_real,
+                            "dnp_d_real": dnp_d_real,
+                            "fator_dp": fator_dp,
+                            "fator_dnp_e": fator_dnp_e,
+                            "fator_dnp_d": fator_dnp_d,
+                            "erro_max": erro_max,
+                            "sexo": sexo,
+                            "faixa": faixa,
+                        }, ensure_ascii=False),
+                        medicao_post.get("id"),
+                    ))
+
+                    conn.commit()
+                    if usar_no_fator:
+                        mensagem = f"Amostra salva no historico e aplicada ao fator ativo de {sexo} / {faixa}. Amostras ativas: {total_ativo}."
                     else:
-                        sexo, faixa = perfil_calibracao_paciente(medicao_post)
-                        atual = obter_calibracao_facial(cursor, sexo, faixa)
-                        amostras = int(atual.get("amostras") or 0)
-                        novo_total = amostras + 1
-
-                        novo_fator_dp = ((float(atual.get("fator_dp") or 1) * amostras) + fator_dp) / novo_total
-                        novo_fator_dnp_e = ((float(atual.get("fator_dnp_e") or 1) * amostras) + fator_dnp_e) / novo_total
-                        novo_fator_dnp_d = ((float(atual.get("fator_dnp_d") or 1) * amostras) + fator_dnp_d) / novo_total
-
-                        erro_dp = abs(dp_real - (dp_camera * novo_fator_dp))
-                        erro_dnp_e = abs(dnp_e_real - (dnp_e_camera * novo_fator_dnp_e))
-                        erro_dnp_d = abs(dnp_d_real - (dnp_d_camera * novo_fator_dnp_d))
-                        erro_medio = round((erro_dp + erro_dnp_e + erro_dnp_d) / 3, 3)
-
-                        cursor.execute("""
-                            INSERT INTO calibracao_facial
-                            (sexo, faixa, fator_dp, fator_dnp_e, fator_dnp_d, amostras, erro_medio, atualizado_em)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                            ON CONFLICT(sexo, faixa) DO UPDATE SET
-                                fator_dp=excluded.fator_dp,
-                                fator_dnp_e=excluded.fator_dnp_e,
-                                fator_dnp_d=excluded.fator_dnp_d,
-                                amostras=excluded.amostras,
-                                erro_medio=excluded.erro_medio,
-                                atualizado_em=datetime('now')
-                        """, (
-                            sexo,
-                            faixa,
-                            novo_fator_dp,
-                            novo_fator_dnp_e,
-                            novo_fator_dnp_d,
-                            novo_total,
-                            erro_medio,
-                        ))
-
-                        cursor.execute("""
-                            INSERT INTO calibracao_facial_amostras
-                            (medicao_id, ods, paciente_id, sexo, faixa,
-                             dp_camera, dnp_e_camera, dnp_d_camera,
-                             dp_real, dnp_e_real, dnp_d_real,
-                             fator_dp, fator_dnp_e, fator_dnp_d,
-                             erro_dp, erro_dnp_e, erro_dnp_d)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            medicao_post.get("id"),
-                            medicao_post.get("ods"),
-                            medicao_post.get("paciente_id"),
-                            sexo,
-                            faixa,
-                            dp_camera,
-                            dnp_e_camera,
-                            dnp_d_camera,
-                            dp_real,
-                            dnp_e_real,
-                            dnp_d_real,
-                            fator_dp,
-                            fator_dnp_e,
-                            fator_dnp_d,
-                            erro_dp,
-                            erro_dnp_e,
-                            erro_dnp_d,
-                        ))
-
-                        cursor.execute("""
-                            UPDATE medicoes
-                            SET calibracao_json=?
-                            WHERE id=?
-                        """, (
-                            json.dumps({
-                                "usada_como_amostra": True,
-                                "dp_real": dp_real,
-                                "dnp_e_real": dnp_e_real,
-                                "dnp_d_real": dnp_d_real,
-                                "sexo": sexo,
-                                "faixa": faixa,
-                            }, ensure_ascii=False),
-                            medicao_post.get("id"),
-                        ))
-
-                        conn.commit()
-                        mensagem = f"Calibracao atualizada para {sexo} / {faixa} com {novo_total} amostra(s)."
+                        mensagem = "Amostra manual salva no historico de auditoria, mas nao aplicada ao fator ativo por estar fora da margem segura."
 
         except ValueError:
             erro = "Digite apenas numeros nas medidas reais."

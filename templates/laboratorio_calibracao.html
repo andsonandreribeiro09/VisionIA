@@ -208,6 +208,23 @@ button{
     background:#f8dbe0;
 }
 
+.badge{
+    display:inline-flex;
+    align-items:center;
+    min-height:24px;
+    padding:0 9px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    background:#edf7ef;
+    color:#126b3d;
+}
+
+.badge.audit{
+    background:#f8ead5;
+    color:#7a4a00;
+}
+
 table{
     width:100%;
     border-collapse:collapse;
@@ -310,7 +327,7 @@ th{
                             <input name="dnp_d_real" inputmode="decimal" placeholder="Ex: 31.5" required>
                         </div>
                     </div>
-                    <p class="muted">Use apenas amostras conferidas. O fator será aplicado nas próximas medições do mesmo perfil.</p>
+                    <p class="muted">A amostra sempre fica no histórico de auditoria. Só entra no fator ativo quando estiver dentro da margem segura.</p>
                     <button type="submit">Salvar calibração</button>
                 </form>
                 {% elif busca %}
@@ -355,21 +372,33 @@ th{
                         <th>DP câmera</th>
                         <th>DP real</th>
                         <th>Fator DP</th>
+                        <th>Uso</th>
                         <th>Data</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in amostras %}
+                    {% set fdp = item.fator_dp or 1 %}
+                    {% set fe = item.fator_dnp_e or 1 %}
+                    {% set fd = item.fator_dnp_d or 1 %}
+                    {% set amostra_ativa = item.usada_no_fator and fdp >= 0.9 and fdp <= 1.1 and fe >= 0.9 and fe <= 1.1 and fd >= 0.9 and fd <= 1.1 %}
                     <tr>
                         <td><a class="ods" href="/laboratorio/calibracao?ods={{ item.ods }}">{{ item.ods }}</a></td>
                         <td>{{ item.faixa }} {{ item.sexo }}</td>
                         <td>{{ "%.2f"|format(item.dp_camera or 0) }}</td>
                         <td>{{ "%.2f"|format(item.dp_real or 0) }}</td>
                         <td>{{ "%.4f"|format(item.fator_dp or 1) }}</td>
+                        <td>
+                            {% if amostra_ativa %}
+                            <span class="badge">Ativa</span>
+                            {% else %}
+                            <span class="badge audit">Histórico</span>
+                            {% endif %}
+                        </td>
                         <td>{{ item.criado_em }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="6" class="muted">Nenhuma amostra registrada.</td></tr>
+                    <tr><td colspan="7" class="muted">Nenhuma amostra registrada.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

@@ -294,11 +294,28 @@ def fator_calibracao_valido(fator):
 
 
 def recalcular_calibracao_facial(cursor):
-    cursor.execute("SELECT * FROM calibracao_facial_amostras ORDER BY id")
+    cursor.execute("""
+        SELECT *
+        FROM calibracao_facial_amostras
+        WHERE COALESCE(usada_no_fator, 1) = 1
+        ORDER BY id
+    """)
     amostras = cursor.fetchall()
 
     grupos = {}
     for amostra in amostras:
+        try:
+            fatores_amostra = [
+                float(amostra.get("fator_dp") or 1),
+                float(amostra.get("fator_dnp_e") or 1),
+                float(amostra.get("fator_dnp_d") or 1),
+            ]
+        except (TypeError, ValueError):
+            continue
+
+        if not all(fator_calibracao_valido(fator) for fator in fatores_amostra):
+            continue
+
         chave = (amostra.get("sexo") or "outro", amostra.get("faixa") or "adulto")
         grupos.setdefault(chave, []).append(amostra)
 
