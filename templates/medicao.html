@@ -574,11 +574,13 @@ const REQUIRE_STABLE = Boolean(CAPTURE_CONFIG.require_stable ?? false);
 const STABLE_SAMPLES = Number(CAPTURE_CONFIG.stable_samples ?? 4);
 const MAX_DP_SPREAD = Number(CAPTURE_CONFIG.max_dp_spread ?? 2);
 const MAX_CAPTURE_GAP = Number(CAPTURE_CONFIG.max_capture_gap ?? 3);
+const INCOMPATIBLE_RESET_MS = Number(CAPTURE_CONFIG.incompatible_reset_ms ?? 1800);
 const GEOMETRY_SCORE_MIN = Number(CAPTURE_CONFIG.geometry_score_min ?? 0);
 const CAPTURE_PHOTO_MAX_WIDTH = Number(CAPTURE_CONFIG.photo_max_width ?? 720);
 const CAPTURE_PHOTO_QUALITY = Number(CAPTURE_CONFIG.photo_quality ?? 0.68);
 let ultimoFrameOkEm = 0;
 let ultimaCapturaEm = 0;
+let leituraIncompativelInicio = null;
 let falhasProcessamento = 0;
 let leiturasRecentes = [];
 let ultimaQualidade = {};
@@ -649,11 +651,16 @@ function leituraEstavel(){
 
 function compativelComCapturas(dp){
     if(!medicoes.length){
+        leituraIncompativelInicio = null;
         return true;
     }
 
     const mediaAtual = medicoes.reduce((total, item) => total + item.dp, 0) / medicoes.length;
-    return Math.abs(dp - mediaAtual) <= MAX_CAPTURE_GAP;
+    const compativel = Math.abs(dp - mediaAtual) <= MAX_CAPTURE_GAP;
+    if(compativel){
+        leituraIncompativelInicio = null;
+    }
+    return compativel;
 }
 
 async function iniciarCameraTablet(){
@@ -923,8 +930,19 @@ function salvarCaptura(){
     const scoreAtual = parseFloat(scoreEl.innerText);
 
     if(!compativelComCapturas(dpAtual)){
-        instrucaoEl.innerText = "Leitura oscilou. Segure mais um pouco...";
-        return false;
+        if(!leituraIncompativelInicio){
+            leituraIncompativelInicio = agora;
+        }
+
+        if(agora - leituraIncompativelInicio >= INCOMPATIBLE_RESET_MS){
+            medicoes = [];
+            leiturasRecentes = [];
+            leituraIncompativelInicio = null;
+            instrucaoEl.innerText = "Nova referencia capturada. Continue parado...";
+        } else {
+            instrucaoEl.innerText = "Leitura oscilou. Segure mais um pouco...";
+            return false;
+        }
     }
 
     const foto = capturarFoto();
@@ -939,6 +957,7 @@ function salvarCaptura(){
     });
 
     ultimaCapturaEm = agora;
+    leituraIncompativelInicio = null;
     statusEl.innerText = `Captura ${Math.min(medicoes.length, TOTAL_CAPTURAS)}/${TOTAL_CAPTURAS}`;
     if(medicoes.length < TOTAL_CAPTURAS){
         leiturasRecentes = [];
