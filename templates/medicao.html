@@ -811,7 +811,8 @@ let loopIA = setInterval(async () => {
         const scoreGeometrico = numero(data.score_geometrico);
         const geometriaOk = GEOMETRY_SCORE_MIN <= 0 || scoreGeometrico >= GEOMETRY_SCORE_MIN;
         const faceOk = data.face_ok !== false;
-        const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false && faceOk && geometriaOk;
+        const distanciaOk = data.dist_ok !== false;
+        const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false && faceOk && geometriaOk && distanciaOk;
         const estavel = leituraEstavel();
         const estabilidadeOk = !REQUIRE_STABLE || (data.confiavel && estavel);
         const leituraBoa = frameRecente && medidasValidas && posicaoOk && estabilidadeOk && score >= CAPTURE_SCORE_MIN;
@@ -827,6 +828,10 @@ let loopIA = setInterval(async () => {
         else if(frameRecente && !geometriaOk){
             faceGuide.style.borderColor = "yellow";
             instrucaoEl.innerText = "Centralize o rosto e endireite a cabeca";
+        }
+        else if(frameRecente && !distanciaOk){
+            faceGuide.style.borderColor = "yellow";
+            instrucaoEl.innerText = data.instrucao || "Afaste o rosto da camera";
         }
         else if(score > CAPTURE_RESET_SCORE && frameRecente){
             faceGuide.style.borderColor = "yellow";
@@ -993,6 +998,10 @@ function finalizar(){
         if(resp.status !== "ok"){
             finalizado = false;
             enviandoLote = false;
+            medicoes = [];
+            leiturasRecentes = [];
+            progressBar.style.width = "0%";
+            fetch("/reset_captura_engine", { method: "POST" }).catch(() => {});
             statusEl.innerText = resp.msg || "❌ Erro ao salvar medições";
             return;
         }
@@ -1000,11 +1009,14 @@ function finalizar(){
         // =========================
         // 🔥 RESULTADO NA TELA
         // =========================
+        const statusFinal = resp.status_validacao === "APROVADO"
+            ? "✅ APROVADO"
+            : (resp.status_validacao === "REVISAR" ? "⚠️ REVISAR" : "❌ REPROVADO");
         statusEl.innerText = `
 ODS: ${resp.ods || "-"}
 DP médio: ${resp.dp_medio}mm  
 Erro: ${resp.erro_max}mm  
-${resp.status_validacao === "APROVADO" ? "✅ APROVADO" : "❌ REPROVADO"}
+${statusFinal}
         `;
 
         // =========================

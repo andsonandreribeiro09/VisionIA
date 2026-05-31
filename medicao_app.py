@@ -58,6 +58,7 @@ def capture_ui_config():
         "max_capture_gap": env_float("VISIONAI_UI_MAX_CAPTURE_GAP", 1.8 if modo_local else 3.0),
         "incompatible_reset_ms": env_int("VISIONAI_UI_INCOMPATIBLE_RESET_MS", 1600 if modo_local else 2200),
         "geometry_score_min": env_float("VISIONAI_UI_MIN_GEOMETRY_SCORE", 65 if modo_local else 0),
+        "max_iris_px": env_float("VISIONAI_MAX_CAPTURE_IRIS_PX", 18 if modo_local else 0),
         "photo_max_width": env_int("VISIONAI_UI_PHOTO_MAX_WIDTH", 720 if modo_local else 960),
         "photo_quality": env_float("VISIONAI_UI_PHOTO_QUALITY", 0.68 if modo_local else 0.78),
     }
@@ -464,6 +465,13 @@ def salvar_lote():
     qualidade_resumo = resumir_qualidade(capturas_preparadas)
     min_score_geometrico = env_float("VISIONAI_MIN_BATCH_GEOMETRY_SCORE", 65 if modo_local else 0)
     score_geometrico = qualidade_resumo.get("score_geometrico")
+    max_iris_px = env_float("VISIONAI_MAX_CAPTURE_IRIS_PX", 18 if modo_local else 0)
+    iris_px_lote = [
+        numero_opcional((item.get("qualidade") or {}).get("iris_px"))
+        for item in capturas_preparadas
+    ]
+    iris_px_lote = [valor for valor in iris_px_lote if valor is not None]
+    iris_max = max(iris_px_lote) if iris_px_lote else None
 
     if min_score_geometrico > 0 and score_geometrico is not None and score_geometrico < min_score_geometrico:
         conn.close()
@@ -474,6 +482,18 @@ def salvar_lote():
                 "Refaca com apenas o paciente no quadro, rosto centralizado e cabeca reta."
             ),
             "score_geometrico": round(score_geometrico, 1),
+        }
+
+    if max_iris_px > 0 and iris_max is not None and iris_max > max_iris_px:
+        conn.close()
+        return {
+            "status": "erro",
+            "msg": (
+                "O rosto ficou muito perto ou a camera nao esta no perfil do tablet. "
+                "Use o tablet fixo e mantenha perto de 40 cm."
+            ),
+            "iris_px": round(iris_max, 1),
+            "iris_px_max": round(max_iris_px, 1),
         }
 
     if erro_max > max_erro_lote or desvio > max_desvio_lote:
@@ -508,6 +528,7 @@ def salvar_lote():
     dnp_d_final = aplicar_calibracao_valor(dnp_d_media, calibracao.get("fator_dnp_d"), usar_calibracao)
 
     _, dp_min_ideal, dp_max_ideal, dp_min_seguro, dp_max_seguro = faixa_dp_paciente(paciente_calibracao)
+    dp_fora_ideal = not (dp_min_ideal <= dp_final <= dp_max_ideal)
     validar_faixa = os.getenv("VISIONAI_VALIDATE_DP_RANGE", "1" if modo_local else "0") == "1"
     if validar_faixa and not (dp_min_seguro <= dp_final <= dp_max_seguro):
         conn.close()
@@ -560,7 +581,12 @@ def salvar_lote():
         "dnp_d_original": round(dnp_d_media, 2),
     }
 
-    status = "APROVADO" if erro_max <= 2 else "REPROVADO"
+    if erro_max > 2:
+        status = "REPROVADO"
+    elif dp_fora_ideal:
+        status = "REVISAR"
+    else:
+        status = "APROVADO"
     validacao = {
         "media": round(media, 2),
         "desvio": round(desvio, 3),

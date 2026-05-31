@@ -76,6 +76,7 @@ $env:VISIONAI_USE_MEDIAN_RESULT = if ($env:VISIONAI_USE_MEDIAN_RESULT) { $env:VI
 $env:VISIONAI_UI_PHOTO_MAX_WIDTH = if ($env:VISIONAI_UI_PHOTO_MAX_WIDTH) { $env:VISIONAI_UI_PHOTO_MAX_WIDTH } else { "720" }
 $env:VISIONAI_UI_PHOTO_QUALITY = if ($env:VISIONAI_UI_PHOTO_QUALITY) { $env:VISIONAI_UI_PHOTO_QUALITY } else { "0.68" }
 $env:VISIONAI_SCALE_MULTIPLIER = if ($env:VISIONAI_SCALE_MULTIPLIER) { $env:VISIONAI_SCALE_MULTIPLIER } else { "1.04" }
+$env:VISIONAI_MAX_CAPTURE_IRIS_PX = if ($env:VISIONAI_MAX_CAPTURE_IRIS_PX) { $env:VISIONAI_MAX_CAPTURE_IRIS_PX } else { "18" }
 
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
 if (-not $pythonCmd) {
@@ -115,7 +116,7 @@ if ($usarPostgresRender) {
     Write-Host "Arquivo DB:  $($env:VISIONAI_DB_PATH)"
     Write-Host "CSV local:   $(Join-Path $env:VISIONAI_DATA_DIR "pacientes_medicoes.csv")"
 }
-Write-Host "Captura:     score $($env:VISIONAI_UI_CAPTURE_SCORE_MIN), $($env:VISIONAI_UI_CAPTURE_HOLD_MS)ms, $($env:VISIONAI_UI_TOTAL_CAPTURES) capturas, escala x$($env:VISIONAI_SCALE_MULTIPLIER)"
+Write-Host "Captura:     score $($env:VISIONAI_UI_CAPTURE_SCORE_MIN), $($env:VISIONAI_UI_CAPTURE_HOLD_MS)ms, $($env:VISIONAI_UI_TOTAL_CAPTURES) capturas, escala x$($env:VISIONAI_SCALE_MULTIPLIER), iris max $($env:VISIONAI_MAX_CAPTURE_IRIS_PX)px"
 Write-Host ""
 
 & $pythonCmd.Source app.py
