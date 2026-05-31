@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
 <title>VisionAI • Medição Inteligente</title>
 
@@ -204,6 +204,7 @@ body{
 body{
     background:#0b1113;
     display:block;
+    overscroll-behavior:none;
 }
 
 .capture-shell{
@@ -447,11 +448,140 @@ body{
     }
 
     .metrics-panel{
-        max-height:48svh;
+        left:8px;
+        right:8px;
+        bottom:max(8px, env(safe-area-inset-bottom));
+        max-height:36svh;
+        padding:8px;
+        gap:8px;
     }
 
     #instrucao{
-        bottom:calc(48svh + 28px);
+        bottom:calc(36svh + max(18px, env(safe-area-inset-bottom) + 10px));
+        width:calc(100vw - 24px);
+        padding:10px 12px;
+        font-size:15px;
+        line-height:1.2;
+    }
+
+    .capture-header{
+        display:none;
+    }
+
+    .capture-shell .face-guide{
+        top:34%;
+        width:min(62vw, 34svh);
+        height:min(78vw, 44svh);
+        border-width:2px;
+    }
+
+    .capture-shell .status-pill{
+        max-height:64px;
+        min-height:0;
+        padding:8px;
+        font-size:11px;
+        line-height:1.25;
+        overflow:hidden;
+    }
+
+    .capture-shell .card{
+        min-height:52px;
+        padding:6px 4px;
+    }
+
+    .capture-shell .card span{
+        font-size:9px;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+    }
+
+    .capture-shell .card b{
+        font-size:clamp(17px, 5vw, 22px);
+    }
+
+    .capture-shell .card small{
+        font-size:9px;
+    }
+
+    .capture-shell .btn-finalizar{
+        min-height:42px;
+        font-size:13px;
+        padding:0 10px;
+    }
+}
+
+@media (max-width: 380px){
+    .capture-shell .status-pill{
+        max-height:58px;
+        font-size:10px;
+    }
+
+    .capture-shell .card{
+        min-height:48px;
+    }
+}
+
+@media (max-height: 520px) and (orientation: landscape){
+    .metrics-panel{
+        top:8px;
+        right:8px;
+        bottom:8px;
+        left:auto;
+        width:min(280px, 36vw);
+        max-height:none;
+        padding:8px;
+        gap:8px;
+    }
+
+    .capture-header{
+        display:none;
+    }
+
+    .capture-shell .hud{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+        gap:6px;
+    }
+
+    .capture-shell .status-pill{
+        max-height:72px;
+        min-height:0;
+        padding:8px;
+        font-size:11px;
+        line-height:1.25;
+        overflow:hidden;
+    }
+
+    .capture-shell .card{
+        min-height:50px;
+        padding:6px;
+    }
+
+    .capture-shell .card b{
+        font-size:18px;
+    }
+
+    .capture-shell .btn-finalizar{
+        min-height:40px;
+        font-size:13px;
+        padding:0 10px;
+    }
+
+    .capture-shell .face-guide{
+        left:40%;
+        top:50%;
+        width:min(34vw, 58vh);
+        height:min(42vw, 72vh);
+    }
+
+    #instrucao{
+        left:12px;
+        right:min(304px, 40vw);
+        bottom:12px;
+        width:auto;
+        transform:none;
+        padding:9px 12px;
+        font-size:14px;
     }
 }
 </style>

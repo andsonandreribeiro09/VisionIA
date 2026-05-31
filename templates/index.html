@@ -3,7 +3,7 @@
 
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
 <title>VisionAI Ótica</title>
 
@@ -14,12 +14,14 @@
 html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
   font-family: 'Segoe UI', sans-serif;
 
   /* Fundo responsivo */
   background: url("{{ url_for('static', filename='img/fundo.png') }}") no-repeat center center;
   background-size: cover;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* Ícone flutuante */
@@ -32,6 +34,8 @@ html, body {
   cursor: pointer;
   animation: pulse 1.5s infinite;
   z-index: 1000;
+  border-radius: 50%;
+  touch-action: manipulation;
 }
 
 /* Imagem do ícone */
@@ -59,6 +63,8 @@ html, body {
   opacity: 0;
   animation: fadeInOut 2s infinite;
   pointer-events: none;
+  max-width: min(320px, 78vw);
+  text-align: center;
 }
 
 /* Animações */
@@ -73,31 +79,51 @@ html, body {
   50% { opacity: 1; }
 }
 
+@keyframes pulseMobile {
+  0% { transform: translateX(50%) scale(1); }
+  50% { transform: translateX(50%) scale(1.12); }
+  100% { transform: translateX(50%) scale(1); }
+}
+
 /* 📱 MOBILE (até 768px) */
 @media (max-width: 768px) {
+  html, body {
+    height: 100svh;
+    min-height: 100svh;
+    background-color: #f4f1ea;
+    background-size: min(100vw, 560px) auto;
+    background-position: center 18px;
+  }
+
   .float-icon {
-    width: 80px;
-    height: 80px;
-    bottom: 4vh;
-    right: 4vw;
+    width: clamp(72px, 22vw, 96px);
+    height: clamp(72px, 22vw, 96px);
+    right: 50%;
+    bottom: max(22px, calc(env(safe-area-inset-bottom) + 22px));
+    animation: pulseMobile 1.5s infinite;
   }
 
   .float-text {
-    font-size: 16px;
-    bottom: 18vh;
-    right: 4vw;
+    width: min(86vw, 320px);
+    right: 50%;
+    bottom: max(118px, calc(env(safe-area-inset-bottom) + 118px));
+    transform: translateX(50%);
+    font-size: clamp(16px, 4.6vw, 22px);
+    line-height: 1.2;
+    color: #12343a;
+    text-shadow: none;
   }
 }
 
 /* 📱 SMALL MOBILE (até 480px) */
 @media (max-width: 480px) {
   .float-icon {
-    width: 65px;
-    height: 65px;
+    width: clamp(68px, 24vw, 84px);
+    height: clamp(68px, 24vw, 84px);
   }
 
   .float-text {
-    font-size: 14px;
+    bottom: max(108px, calc(env(safe-area-inset-bottom) + 108px));
   }
 }
 
