@@ -713,6 +713,29 @@ body{
         font-size:14px;
     }
 }
+
+.capture-shell:not(.resultado-visivel) .metrics-panel{
+    display:none;
+}
+
+.capture-shell.resultado-visivel .metrics-panel{
+    display:flex;
+}
+
+.capture-shell:not(.resultado-visivel) #instrucao{
+    left:50%;
+    right:auto;
+    bottom:max(24px, env(safe-area-inset-bottom) + 12px);
+    width:min(82%, 620px);
+    transform:translateX(-50%);
+}
+
+@media (max-width: 620px){
+    .capture-shell:not(.resultado-visivel) #instrucao{
+        width:calc(100vw - 24px);
+        bottom:max(18px, env(safe-area-inset-bottom) + 10px);
+    }
+}
 </style>
 </head>
 
