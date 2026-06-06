@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionAI Admin</title>
+<style>
+:root{
+    --bg:#f4f1ea;
+    --paper:#fff;
+    --ink:#102024;
+    --muted:#607074;
+    --brand:#008c99;
+    --line:#e5ded2;
+    --ok:#11804a;
+    --warn:#a52b3d;
+    --soft:#f8f6f1;
+}
+*{box-sizing:border-box}
+body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Segoe UI", system-ui, sans-serif;
+}
+.layout{
+    display:grid;
+    grid-template-columns:240px minmax(0,1fr);
+    min-height:100dvh;
+}
+aside{
+    padding:24px 18px;
+    border-right:1px solid var(--line);
+    background:#fff;
+}
+.brand{
+    color:var(--brand);
+    font-size:13px;
+    font-weight:900;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+}
+aside h1{margin:4px 0 28px;font-size:28px}
+aside a{
+    display:block;
+    margin-top:12px;
+    padding:12px 14px;
+    border-radius:8px;
+    color:var(--ink);
+    font-weight:800;
+    text-decoration:none;
+}
+aside a.active{background:var(--brand);color:#fff}
+.muted{color:var(--muted)}
+main{padding:28px}
+.top{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    align-items:flex-start;
+    margin-bottom:24px;
+}
+h2{margin:0;font-size:30px}
+p{line-height:1.4}
+.grid{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 420px;
+    gap:18px;
+    align-items:start;
+}
+.panel{
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--paper);
+}
+.panel-head{
+    padding:16px;
+    border-bottom:1px solid var(--line);
+}
+.panel-head h3{margin:0;font-size:18px}
+.panel-body{padding:16px}
+.alert{
+    margin-bottom:14px;
+    padding:12px 14px;
+    border-radius:8px;
+    font-weight:800;
+}
+.alert.ok{background:#e7f6ec;color:#0f6b3d}
+.alert.warn{background:#fde3e8;color:var(--warn)}
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+th,td{
+    padding:12px;
+    border-bottom:1px solid var(--line);
+    text-align:left;
+    vertical-align:top;
+}
+th{
+    color:var(--muted);
+    font-size:12px;
+    text-transform:uppercase;
+}
+.store{
+    display:grid;
+    gap:4px;
+}
+.store strong{font-size:16px}
+.code{
+    display:inline-block;
+    max-width:260px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    vertical-align:bottom;
+    white-space:nowrap;
+    font-family:Consolas, monospace;
+    font-size:12px;
+}
+.pill{
+    display:inline-flex;
+    align-items:center;
+    min-height:28px;
+    padding:0 10px;
+    border-radius:999px;
+    background:#e9eef0;
+    color:var(--ink);
+    font-weight:900;
+    font-size:12px;
+}
+.pill.ok{background:#dff4e8;color:var(--ok)}
+.pill.warn{background:#fde3e8;color:var(--warn)}
+.pill.off{background:#eee;color:#777}
+.actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+}
+form.inline{
+    display:flex;
+    gap:6px;
+    align-items:center;
+}
+button,
+input,
+select{
+    min-height:40px;
+    border-radius:8px;
+    font:inherit;
+}
+input,
+select{
+    width:100%;
+    padding:0 10px;
+    border:1px solid var(--line);
+    background:#fff;
+}
+button{
+    padding:0 12px;
+    border:0;
+    background:var(--brand);
+    color:#fff;
+    font-weight:900;
+    cursor:pointer;
+}
+button.secondary{background:#102024}
+button.danger{background:var(--warn)}
+.form-grid{
+    display:grid;
+    gap:12px;
+}
+label{
+    display:grid;
+    gap:6px;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:900;
+    text-transform:uppercase;
+}
+.api-box{
+    margin-top:16px;
+    padding:14px;
+    border-radius:8px;
+    background:var(--soft);
+    font-family:Consolas, monospace;
+    font-size:12px;
+    line-height:1.5;
+    overflow:auto;
+}
+@media (max-width: 980px){
+    .layout{grid-template-columns:1fr}
+    aside{border-right:0;border-bottom:1px solid var(--line)}
+    .grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+    <aside>
+        <div class="brand">VisionAI</div>
+        <h1>Admin</h1>
+        <a class="active" href="/admin">Lojas</a>
+        <a href="/admin/logout">Sair</a>
+        <p class="muted">Usuario: {{ admin_user }}</p>
+    </aside>
+
+    <main>
+        <header class="top">
+            <div>
+                <h2>Painel administrativo</h2>
+                <p class="muted">Controle licencas, vencimentos e status das lojas.</p>
+            </div>
+        </header>
+
+        {% if mensagem %}
+        <div class="alert ok">{{ mensagem }}</div>
+        {% endif %}
+        {% if erro %}
+        <div class="alert warn">{{ erro }}</div>
+        {% endif %}
+
+        <section class="grid">
+            <div class="panel">
+                <div class="panel-head">
+                    <h3>Lojas cadastradas</h3>
+                </div>
+                <div class="panel-body">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Loja</th>
+                                <th>Status</th>
+                                <th>Licenca</th>
+                                <th>Ultimo check-in</th>
+                                <th>Acoes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for loja in lojas %}
+                            <tr>
+                                <td>
+                                    <div class="store">
+                                        <strong>{{ loja.nome }}</strong>
+                                        <span class="muted">{{ loja.cidade or "-" }}</span>
+                                        <span class="code">{{ loja.loja_id }}</span>
+                                        <span class="muted">{{ loja.dominio_medicao or "-" }}</span>
+                                        <span class="muted">{{ loja.dominio_lab or "-" }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="pill {{ 'ok' if loja.status == 'ativo' else 'warn' }}">{{ loja.status }}</span>
+                                    <span class="pill {{ 'ok' if loja.online else 'off' }}">{{ 'online' if loja.online else 'offline' }}</span>
+                                </td>
+                                <td>
+                                    <div class="store">
+                                        <strong>{{ loja.plano or "-" }}</strong>
+                                        <span>Vence: {{ loja.vence_em or loja.vencimento or "-" }}</span>
+                                        <span>Dias: {{ loja.dias_restantes if loja.dias_restantes is not none else "-" }}</span>
+                                        <span class="code">{{ loja.license_key or "-" }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="store">
+                                        <span>{{ loja.ultimo_checkin or "-" }}</span>
+                                        <span class="muted">Versao: {{ loja.versao or "-" }}</span>
+                                        <span class="muted">Medicoes hoje: {{ loja.medicoes_hoje or 0 }}</span>
+                                        <span class="muted">Banco: {{ loja.banco_status or "-" }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="actions">
+                                        <form class="inline" method="post" action="/admin/lojas/{{ loja.id }}/renovar">
+                                            <input type="hidden" name="dias" value="30">
+                                            <button type="submit">+30 dias</button>
+                                        </form>
+
+                                        {% if loja.status == 'ativo' %}
+                                        <form class="inline" method="post" action="/admin/lojas/{{ loja.id }}/status">
+                                            <input type="hidden" name="status" value="suspenso">
+                                            <button class="danger" type="submit">Suspender</button>
+                                        </form>
+                                        {% else %}
+                                        <form class="inline" method="post" action="/admin/lojas/{{ loja.id }}/status">
+                                            <input type="hidden" name="status" value="ativo">
+                                            <button class="secondary" type="submit">Reativar</button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="muted">Nenhuma loja cadastrada.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h3>Nova loja</h3>
+                </div>
+                <div class="panel-body">
+                    <form class="form-grid" method="post" action="/admin/lojas">
+                        <label>Nome
+                            <input name="nome" value="{{ defaults.nome }}" required>
+                        </label>
+                        <label>Cidade
+                            <input name="cidade" value="{{ defaults.cidade }}">
+                        </label>
+                        <label>ID da loja
+                            <input name="loja_id" value="{{ defaults.loja_id }}">
+                        </label>
+                        <label>Status
+                            <select name="status">
+                                <option value="ativo" selected>ativo</option>
+                                <option value="suspenso">suspenso</option>
+                            </select>
+                        </label>
+                        <label>Plano
+                            <input name="plano" value="{{ defaults.plano }}">
+                        </label>
+                        <label>Vencimento
+                            <input type="date" name="vencimento" value="{{ defaults.vencimento }}">
+                        </label>
+                        <label>Dominio medicao
+                            <input name="dominio_medicao" value="{{ defaults.dominio_medicao }}">
+                        </label>
+                        <label>Dominio laboratorio
+                            <input name="dominio_lab" value="{{ defaults.dominio_lab }}">
+                        </label>
+                        <button type="submit">Criar loja e licenca</button>
+                    </form>
+
+                    <div class="api-box">
+POST /api/licenca/verificar<br>
+{<br>
+&nbsp;&nbsp;"store_id": "detecta-vision-osasco-001",<br>
+&nbsp;&nbsp;"license_key": "copie-a-chave-gerada",<br>
+&nbsp;&nbsp;"machine_id": "PC-LOJA-001",<br>
+&nbsp;&nbsp;"app_version": "1.0.0"<br>
+}
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

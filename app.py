@@ -5,6 +5,7 @@ from importlib import import_module
 APP_MODULES = {
     "medicao": "medicao_app",
     "laboratorio": "laboratorio_app",
+    "admin": "admin_app",
 }
 
 
