@@ -709,6 +709,7 @@ const CAPTURE_PHOTO_MAX_WIDTH = Number(CAPTURE_CONFIG.photo_max_width ?? 720);
 const CAPTURE_PHOTO_QUALITY = Number(CAPTURE_CONFIG.photo_quality ?? 0.68);
 const CROP_PADDING_X = Number(CAPTURE_CONFIG.crop_padding_x ?? 1.36);
 const CROP_PADDING_Y = Number(CAPTURE_CONFIG.crop_padding_y ?? 1.22);
+const CAPTURE_LABEL = TOTAL_CAPTURAS === 1 ? "captura" : "capturas";
 let ultimoFrameOkEm = 0;
 let ultimaCapturaEm = 0;
 let leituraIncompativelInicio = null;
@@ -1080,7 +1081,7 @@ let loopIA = setInterval(async () => {
         }
 
     }catch(e){
-        statusEl.innerText = `${medicoes.length}/${TOTAL_CAPTURAS} capturas concluídas`;
+        statusEl.innerText = `${medicoes.length}/${TOTAL_CAPTURAS} ${CAPTURE_LABEL} concluída${TOTAL_CAPTURAS === 1 ? "" : "s"}`;
     }
 
 }, DATA_INTERVAL_MS);

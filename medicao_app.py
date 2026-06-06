@@ -50,7 +50,7 @@ def capture_ui_config():
         "score_min": env_float("VISIONAI_UI_CAPTURE_SCORE_MIN", 82 if modo_local else 70),
         "reset_score": env_float("VISIONAI_UI_CAPTURE_RESET_SCORE", 60 if modo_local else 45),
         "hold_ms": env_int("VISIONAI_UI_CAPTURE_HOLD_MS", 900 if modo_local else 450),
-        "total": env_int("VISIONAI_UI_TOTAL_CAPTURES", 3 if modo_local else 4),
+        "total": env_int("VISIONAI_UI_TOTAL_CAPTURES", 1 if modo_local else 4),
         "cooldown_ms": env_int("VISIONAI_UI_CAPTURE_COOLDOWN_MS", 450 if modo_local else 250),
         "require_stable": os.getenv("VISIONAI_UI_REQUIRE_STABLE", "1" if modo_local else "0") == "1",
         "stable_samples": env_int("VISIONAI_UI_STABLE_SAMPLES", 3 if modo_local else 4),
@@ -402,7 +402,7 @@ def salvar_lote():
         return {"status": "erro", "msg": "Nenhuma medicao recebida"}
 
     modo_local = os.getenv("VISIONAI_LOCAL_MODE", "0") == "1"
-    min_capturas = env_int("VISIONAI_MIN_BATCH_CAPTURES", env_int("VISIONAI_UI_TOTAL_CAPTURES", 3 if modo_local else 4))
+    min_capturas = env_int("VISIONAI_MIN_BATCH_CAPTURES", env_int("VISIONAI_UI_TOTAL_CAPTURES", 1 if modo_local else 4))
     max_erro_lote = env_float("VISIONAI_MAX_BATCH_ERRO_MM", 1.8 if modo_local else 2.0)
     max_desvio_lote = env_float("VISIONAI_MAX_BATCH_STD_MM", 1.0 if modo_local else 1.1)
 
