@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 from datetime import datetime
 
 import cv2
@@ -184,7 +185,12 @@ def db_status():
 
 @app.route("/paciente")
 def paciente():
-    return render_template("paciente.html")
+    os_teste = [f"{numero:05d}" for numero in range(1166, 1176)]
+    return render_template(
+        "paciente.html",
+        data_exame=datetime.now().strftime("%Y-%m-%d"),
+        os_teste=os_teste,
+    )
 
 
 @app.route("/cadastro")
@@ -197,13 +203,19 @@ def salvar_paciente():
     if gravacao_bloqueada_por_banco():
         return mensagem_banco_obrigatorio(), 503
 
-    nome = request.form["nome"]
-    rg = request.form["rg"]
-    data_nascimento = request.form["data_nascimento"]
-    sexo = request.form["sexo"]
+    os_numero = (request.form.get("os_numero") or request.form.get("rg") or "").strip()
+    os_numero = re.sub(r"\D+", "", os_numero)
+    if not os_numero:
+        return redirect(url_for("paciente"), code=303)
+
+    os_numero = os_numero.zfill(5)[-12:]
+    nome = (request.form.get("nome") or f"OS {os_numero}").strip()
+    rg = (request.form.get("rg") or os_numero).strip()
+    data_nascimento = request.form.get("data_nascimento") or "1990-01-01"
+    sexo = request.form.get("sexo") or "outro"
     idade = request.form.get("idade", type=int)
-    telefone = request.form["telefone"]
-    data_exame = request.form["data_exame"]
+    telefone = request.form.get("telefone") or ""
+    data_exame = request.form.get("data_exame") or datetime.now().strftime("%Y-%m-%d")
 
     if idade is None:
         idade = calcular_idade_por_data(data_nascimento) or 0
@@ -213,11 +225,12 @@ def salvar_paciente():
 
     paciente_id = inserir_retornando_id(cursor, """
         INSERT INTO pacientes
-        (nome, rg, data_nascimento, sexo, idade, telefone, data_exame)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (nome, rg, os_numero, data_nascimento, sexo, idade, telefone, data_exame)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         nome,
         rg,
+        os_numero,
         data_nascimento,
         sexo,
         idade,
@@ -231,6 +244,7 @@ def salvar_paciente():
     session["paciente_id"] = paciente_id
     registrar_paciente_no_csv({
         "id": paciente_id,
+        "os_numero": os_numero,
         "nome": nome,
         "rg": rg,
         "data_nascimento": data_nascimento,

@@ -191,6 +191,7 @@ def criar_tabelas_sqlite(cursor):
         data_exame TEXT,
         foto TEXT,
         rg TEXT,
+        os_numero TEXT,
         data_nascimento TEXT,
         sexo TEXT
     )
@@ -313,6 +314,7 @@ def criar_tabelas_postgres(cursor):
         data_exame TEXT,
         foto TEXT,
         rg TEXT,
+        os_numero TEXT,
         data_nascimento TEXT,
         sexo TEXT
     )
@@ -440,6 +442,7 @@ def migrar_colunas(cursor, backend):
     for nome, tipo in [
         ("foto", "TEXT"),
         ("rg", "TEXT"),
+        ("os_numero", "TEXT"),
         ("data_nascimento", "TEXT"),
         ("sexo", "TEXT"),
     ]:

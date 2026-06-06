@@ -3,20 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VisionAI • Cadastro do Paciente</title>
+<title>VisionAI - OS</title>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='visionai.css') }}">
 
 <style>
 :root {
     --bg-paper: #f4f1ea;
-    --text-main: #212121;
-    --text-sub: #616161;
+    --text-main: #102024;
+    --text-sub: #607074;
     --card-bg: #ffffff;
     --frosty-bg: #fafafa;
-    --logo-blue: #00acc1;
-    --logo-green: #1b5e20;
-    --transition: 0.3s ease;
+    --logo-blue: #0097a7;
+    --transition: 0.2s ease;
 }
 
 * {
@@ -25,264 +24,271 @@
     box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
     width: 100%;
     min-height: 100%;
     overflow-x: hidden;
 }
 
 body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
     background-color: var(--bg-paper);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath fill='%23ebe8df' fill-opacity='0.4' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'/%3E%3C/svg%3E");
     color: var(--text-main);
-
-    display: flex;
-    flex-direction: column;
-    min-height: 100dvh;
+    font-family: "Segoe UI", system-ui, sans-serif;
 }
 
-/* HEADER */
 header {
     flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(6px);
+    background: rgba(255,255,255,0.92);
     border-bottom: 1px solid rgba(0,0,0,0.05);
 }
 
-.logo a {
+.logo a,
+nav a {
     text-decoration: none;
-    font-size: 20px;
-    font-weight: 800;
-    color: var(--logo-blue);
 }
 
-nav {
-    display: flex;
-    gap: 5px;
+.logo a {
+    color: var(--logo-blue);
+    font-size: 20px;
+    font-weight: 800;
 }
 
 nav a {
-    text-decoration: none;
-    color: var(--text-main);
-    font-weight: 600;
     padding: 8px 12px;
-    border-radius: 10px;
+    border-radius: 8px;
+    color: var(--text-main);
     font-size: 14px;
-    transition: var(--transition);
-}
-
-nav a:hover {
-    background: rgba(0,0,0,0.05);
+    font-weight: 700;
 }
 
 nav a.active {
-    background: linear-gradient(135deg, var(--logo-blue), #1976d2);
+    background: var(--logo-blue);
     color: white;
 }
 
-/* MAIN */
 main {
     flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: grid;
+    place-items: center;
     padding: 20px;
 }
 
-/* FORM */
 .container {
-    width: 100%;
-    max-width: 420px;
+    width: min(100%, 440px);
+    display: grid;
+    gap: 16px;
+    padding: 22px;
+    border-radius: 12px;
     background: var(--card-bg);
-    padding: 20px;
-    border-radius: 20px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-
-    max-height: 90vh;
-    overflow-y: auto;
+    box-shadow: 0 12px 30px rgba(16,32,36,0.08);
 }
 
-h2 {
+h1 {
+    font-size: 24px;
+    line-height: 1.15;
     text-align: center;
-    font-size: 18px;
-    margin-bottom: 15px;
+}
+
+.hint {
+    color: var(--text-sub);
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
 }
 
 form {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: grid;
+    gap: 14px;
 }
 
 .input-group {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    gap: 6px;
 }
 
 label {
-    font-size: 12px;
-    margin-bottom: 4px;
     color: var(--text-sub);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
 }
 
-input, select {
+input {
+    width: 100%;
+    min-height: 56px;
     padding: 12px;
-    border-radius: 10px;
     border: 1px solid rgba(0,0,0,0.1);
-    font-size: 14px;
-    background: var(--frosty-bg);
+    border-radius: 8px;
     outline: none;
+    background: var(--frosty-bg);
+    color: var(--text-main);
 }
 
-input:focus, select:focus {
+input:focus {
     border-color: var(--logo-blue);
+    box-shadow: 0 0 0 3px rgba(0,151,167,0.12);
 }
 
-button {
-    margin-top: 10px;
-    padding: 14px;
-    border: none;
-    border-radius: 40px;
-    background: linear-gradient(135deg, var(--logo-blue), #1976d2);
-    color: white;
-    font-weight: bold;
-    font-size: 14px;
+.os-input {
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-align: center;
+}
+
+.exam-date {
+    min-height: 48px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--frosty-bg);
+    color: var(--text-sub);
+    font-weight: 800;
+}
+
+.test-os {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.test-os button,
+.submit-btn {
+    min-height: 46px;
+    border: 0;
+    border-radius: 8px;
     cursor: pointer;
+    font-weight: 800;
     transition: var(--transition);
 }
 
-button:hover {
-    transform: scale(1.03);
+.test-os button {
+    background: #eef8fa;
+    color: #006d77;
+    border: 1px solid #c8ecef;
+    font-size: 13px;
 }
 
-/* MOBILE */
-@media (max-width: 600px) {
+.submit-btn {
+    min-height: 56px;
+    margin-top: 4px;
+    background: #008c99;
+    color: white;
+    font-size: 16px;
+}
 
+.test-os button:hover,
+.submit-btn:hover {
+    transform: translateY(-1px);
+}
+
+.submit-btn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+    transform: none;
+}
+
+@media (max-width: 600px) {
     header {
-        padding: 10px 15px;
+        padding: 12px 14px;
+    }
+
+    main {
+        padding: 14px;
+        place-items: start center;
     }
 
     .container {
-        max-width: 100%;
-        border-radius: 15px;
-        padding: 15px;
-        max-height: 95vh;
+        padding: 18px;
+        border-radius: 10px;
     }
 
-    input, select {
-        font-size: 16px;
+    h1 {
+        font-size: 22px;
     }
 
-    button {
-        padding: 16px;
-        font-size: 15px;
+    .os-input {
+        font-size: 28px;
     }
 
-    h2 {
-        font-size: 16px;
+    .test-os {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 </style>
 </head>
 
 <body>
-
 <header>
     <div class="logo">
         <a href="{{ url_for('index') }}">VisionAI</a>
     </div>
-
     <nav>
-        <a href="{{ url_for('index') }}" 
-           class="{% if request.path == '/' %}active{% endif %}">
-           Início
-        </a>
+        <a href="{{ url_for('index') }}" class="{% if request.path == '/' %}active{% endif %}">Inicio</a>
     </nav>
 </header>
 
 <main>
-<div class="container">
+    <section class="container">
+        <div>
+            <h1>Iniciar captura por OS</h1>
+            <p class="hint">Digite a OS do pedido. A data do exame fica registrada automaticamente.</p>
+        </div>
 
-<h2>Cadastro do Paciente</h2>
+        <form action="{{ url_for('salvar_paciente') }}" method="POST" id="cadastro-form">
+            <div class="input-group">
+                <label for="os_numero">OS</label>
+                <input class="os-input" type="text" name="os_numero" id="os_numero" inputmode="numeric" autocomplete="off" placeholder="01175" required autofocus>
+            </div>
 
-<form action="{{ url_for('salvar_paciente') }}" method="POST" id="cadastro-form">
+            <div class="input-group">
+                <label>OS anteriores para teste</label>
+                <div class="test-os">
+                    {% for os in os_teste %}
+                    <button type="button" data-os="{{ os }}">{{ os }}</button>
+                    {% endfor %}
+                </div>
+            </div>
 
-    <div class="input-group">
-        <label>Nome Completo</label>
-        <input type="text" name="nome" placeholder="Ex: João Silva" required>
-    </div>
+            <div class="input-group">
+                <label>Data do exame</label>
+                <div class="exam-date">{{ data_exame }}</div>
+                <input type="hidden" name="data_exame" value="{{ data_exame }}">
+            </div>
 
-    <div class="input-group">
-        <label>RG</label>
-        <input type="text" name="rg" placeholder="Ex: 12.345.678-9" required>
-    </div>
-
-    <div class="input-group">
-        <label>Data de Nascimento</label>
-        <input type="date" name="data_nascimento" id="data_nascimento" required>
-    </div>
-
-    <div class="input-group">
-        <label>Sexo</label>
-        <select name="sexo" required>
-            <option value="">Selecione</option>
-            <option value="masculino">Masculino</option>
-            <option value="feminino">Feminino</option>
-            <option value="outro">Outro</option>
-        </select>
-    </div>
-
-    <div class="input-group">
-        <label>Idade</label>
-        <input type="number" name="idade" id="idade" placeholder="Calculado automaticamente" readonly>
-    </div>
-
-    <div class="input-group">
-        <label>Telefone / WhatsApp</label>
-        <input type="tel" name="telefone" placeholder="(11) 99999-9999" required>
-    </div>
-
-    <div class="input-group">
-        <label>Data do Exame</label>
-        <input type="date" name="data_exame" required>
-    </div>
-
-    <button type="submit" id="btn-continuar">
-        Salvar e Continuar
-    </button>
-
-</form>
-
-</div>
+            <button class="submit-btn" type="submit" id="btn-continuar">Iniciar captura</button>
+        </form>
+    </section>
 </main>
 
 <script>
-// 🔥 AUTO CALCULAR IDADE
-document.getElementById("data_nascimento").addEventListener("change", function() {
-    const nascimento = new Date(this.value);
-    const hoje = new Date();
+const osInput = document.getElementById("os_numero");
 
-    let idade = hoje.getFullYear() - nascimento.getFullYear();
-    const m = hoje.getMonth() - nascimento.getMonth();
+document.querySelectorAll("[data-os]").forEach(function(botao) {
+    botao.addEventListener("click", function() {
+        osInput.value = this.dataset.os;
+        osInput.focus();
+    });
+});
 
-    if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) {
-        idade--;
-    }
-
-    document.getElementById("idade").value = idade;
+osInput.addEventListener("input", function() {
+    this.value = this.value.replace(/\D+/g, "").slice(0, 12);
 });
 
 document.getElementById("cadastro-form").addEventListener("submit", function() {
     const botao = document.getElementById("btn-continuar");
     botao.disabled = true;
-    botao.innerText = "Abrindo medicao...";
+    botao.innerText = "Abrindo captura...";
 });
 </script>
-
 </body>
 </html>

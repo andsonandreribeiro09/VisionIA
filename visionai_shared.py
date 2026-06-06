@@ -21,6 +21,7 @@ CSV_PACIENTES_MEDICOES = os.path.join(DATA_DIR, "pacientes_medicoes.csv")
 CSV_COLUNAS = [
     "paciente_id",
     "ods",
+    "os_numero",
     "nome",
     "rg",
     "data_nascimento",
@@ -123,6 +124,7 @@ def carregar_paciente(paciente_id):
 def registrar_paciente_no_csv(paciente):
     salvar_linha_csv(paciente["id"], {
         "paciente_id": paciente["id"],
+        "os_numero": paciente.get("os_numero"),
         "nome": paciente.get("nome"),
         "rg": paciente.get("rg"),
         "data_nascimento": paciente.get("data_nascimento"),
@@ -141,6 +143,7 @@ def registrar_medicao_no_csv(paciente_id, dados_medicao_csv):
     if paciente:
         dados.update({
             "nome": paciente.get("nome"),
+            "os_numero": paciente.get("os_numero"),
             "rg": paciente.get("rg"),
             "data_nascimento": paciente.get("data_nascimento"),
             "sexo": paciente.get("sexo"),

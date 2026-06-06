@@ -435,7 +435,7 @@ th{
             </div>
 
             <form class="search" action="/laboratorio" method="get">
-                <input name="q" value="{{ busca }}" placeholder="Buscar ODS, paciente ou RG">
+                <input name="q" value="{{ busca }}" placeholder="Buscar ODS, OS ou paciente">
                 <button type="submit">Buscar</button>
             </form>
         </header>
@@ -463,7 +463,7 @@ th{
             <div class="detail-main">
                 <span class="ods">{{ medicao.ods or "Sem ODS" }}</span>
                 <h3>{{ medicao.nome or "Paciente sem nome" }}</h3>
-                <p class="muted">RG {{ medicao.rg or "-" }} | {{ medicao.data or medicao.data_exame or "-" }}</p>
+                <p class="muted">OS {{ medicao.os_numero or medicao.rg or "-" }} | {{ medicao.data or medicao.data_exame or "-" }}</p>
 
                 <div class="detail-grid">
                     {% if medicao.tem_medicao %}
