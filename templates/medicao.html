@@ -247,7 +247,7 @@ body{
     max-width:620px;
     max-height:720px;
     border-width:3px;
-    box-shadow:0 0 0 999px rgba(0,0,0,0.18);
+    box-shadow:0 0 0 999px rgba(0,0,0,0.34);
 }
 
 #instrucao{
@@ -690,7 +690,6 @@ let processandoFrame = false;
 let medicoes = [];
 const videoEl = document.getElementById("video");
 const frameCanvas = document.createElement("canvas");
-const frameCtx = frameCanvas.getContext("2d");
 const FRAME_INTERVAL_MS = 260;
 const DATA_INTERVAL_MS = 220;
 const PROCESS_MAX_WIDTH = 960;
@@ -708,6 +707,8 @@ const INCOMPATIBLE_RESET_MS = Number(CAPTURE_CONFIG.incompatible_reset_ms ?? 180
 const GEOMETRY_SCORE_MIN = Number(CAPTURE_CONFIG.geometry_score_min ?? 0);
 const CAPTURE_PHOTO_MAX_WIDTH = Number(CAPTURE_CONFIG.photo_max_width ?? 720);
 const CAPTURE_PHOTO_QUALITY = Number(CAPTURE_CONFIG.photo_quality ?? 0.68);
+const CROP_PADDING_X = Number(CAPTURE_CONFIG.crop_padding_x ?? 1.36);
+const CROP_PADDING_Y = Number(CAPTURE_CONFIG.crop_padding_y ?? 1.22);
 let ultimoFrameOkEm = 0;
 let ultimaCapturaEm = 0;
 let leituraIncompativelInicio = null;
@@ -718,6 +719,68 @@ let ultimaQualidade = {};
 function numero(valor, fallback = 0){
     const convertido = Number(valor);
     return Number.isFinite(convertido) ? convertido : fallback;
+}
+
+function limitar(valor, min, max){
+    return Math.max(min, Math.min(max, valor));
+}
+
+function calcularRecorteFonte(){
+    const larguraVideo = videoEl.videoWidth || 640;
+    const alturaVideo = videoEl.videoHeight || 480;
+    const containerRect = videoEl.getBoundingClientRect();
+    const guiaRect = faceGuide.getBoundingClientRect();
+
+    if(!containerRect.width || !containerRect.height || !guiaRect.width || !guiaRect.height){
+        const largura = larguraVideo * 0.74;
+        const altura = alturaVideo * 0.88;
+        return {
+            sx: (larguraVideo - largura) / 2,
+            sy: (alturaVideo - altura) / 2,
+            sw: largura,
+            sh: altura
+        };
+    }
+
+    const escala = Math.max(containerRect.width / larguraVideo, containerRect.height / alturaVideo);
+    const renderW = larguraVideo * escala;
+    const renderH = alturaVideo * escala;
+    const offsetX = (containerRect.width - renderW) / 2;
+    const offsetY = (containerRect.height - renderH) / 2;
+
+    const centroX = (guiaRect.left - containerRect.left) + (guiaRect.width / 2);
+    const centroY = (guiaRect.top - containerRect.top) + (guiaRect.height / 2);
+    const cropW = Math.min(containerRect.width, guiaRect.width * CROP_PADDING_X);
+    const cropH = Math.min(containerRect.height, guiaRect.height * CROP_PADDING_Y);
+    const cropX = limitar(centroX - cropW / 2, 0, containerRect.width - cropW);
+    const cropY = limitar(centroY - cropH / 2, 0, containerRect.height - cropH);
+
+    const sx = limitar((cropX - offsetX) / escala, 0, larguraVideo);
+    const sy = limitar((cropY - offsetY) / escala, 0, alturaVideo);
+    const sw = limitar(cropW / escala, 1, Math.max(1, larguraVideo - sx));
+    const sh = limitar(cropH / escala, 1, Math.max(1, alturaVideo - sy));
+
+    return { sx, sy, sw, sh };
+}
+
+function desenharRecorteCentral(canvas, larguraMaxima){
+    const recorte = calcularRecorteFonte();
+    const fator = Math.min(larguraMaxima / recorte.sw, 1);
+    canvas.width = Math.max(1, Math.round(recorte.sw * fator));
+    canvas.height = Math.max(1, Math.round(recorte.sh * fator));
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(
+        videoEl,
+        recorte.sx,
+        recorte.sy,
+        recorte.sw,
+        recorte.sh,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
 }
 
 function qualidadeDaLeitura(data){
@@ -845,10 +908,7 @@ async function enviarFramesParaIA(){
     processandoFrame = true;
 
     try{
-        const fator = Math.min(PROCESS_MAX_WIDTH / videoEl.videoWidth, 1);
-        frameCanvas.width = Math.round(videoEl.videoWidth * fator);
-        frameCanvas.height = Math.round(videoEl.videoHeight * fator);
-        frameCtx.drawImage(videoEl, 0, 0, frameCanvas.width, frameCanvas.height);
+        desenharRecorteCentral(frameCanvas, PROCESS_MAX_WIDTH);
 
         const resp = await fetch("/process-frame", {
             method: "POST",
@@ -1029,18 +1089,8 @@ let loopIA = setInterval(async () => {
 // CAPTURA FOTO (AGORA RETORNA)
 // =========================
 function capturarFoto(){
-
-    const video = document.getElementById("video");
-    const larguraVideo = video.videoWidth || 640;
-    const alturaVideo = video.videoHeight || 480;
-    const fator = Math.min(CAPTURE_PHOTO_MAX_WIDTH / larguraVideo, 1);
-
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(larguraVideo * fator);
-    canvas.height = Math.round(alturaVideo * fator);
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    desenharRecorteCentral(canvas, CAPTURE_PHOTO_MAX_WIDTH);
 
     return canvas.toDataURL("image/jpeg", CAPTURE_PHOTO_QUALITY);
 }

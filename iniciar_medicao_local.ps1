@@ -77,6 +77,10 @@ $env:VISIONAI_UI_PHOTO_MAX_WIDTH = if ($env:VISIONAI_UI_PHOTO_MAX_WIDTH) { $env:
 $env:VISIONAI_UI_PHOTO_QUALITY = if ($env:VISIONAI_UI_PHOTO_QUALITY) { $env:VISIONAI_UI_PHOTO_QUALITY } else { "0.68" }
 $env:VISIONAI_SCALE_MULTIPLIER = if ($env:VISIONAI_SCALE_MULTIPLIER) { $env:VISIONAI_SCALE_MULTIPLIER } else { "1.04" }
 $env:VISIONAI_MAX_CAPTURE_IRIS_PX = if ($env:VISIONAI_MAX_CAPTURE_IRIS_PX) { $env:VISIONAI_MAX_CAPTURE_IRIS_PX } else { "18" }
+$env:VISIONAI_UI_CROP_PADDING_X = if ($env:VISIONAI_UI_CROP_PADDING_X) { $env:VISIONAI_UI_CROP_PADDING_X } else { "1.36" }
+$env:VISIONAI_UI_CROP_PADDING_Y = if ($env:VISIONAI_UI_CROP_PADDING_Y) { $env:VISIONAI_UI_CROP_PADDING_Y } else { "1.22" }
+$env:VISIONAI_MAX_DNP_DIFF_MM = if ($env:VISIONAI_MAX_DNP_DIFF_MM) { $env:VISIONAI_MAX_DNP_DIFF_MM } else { "5.0" }
+$env:VISIONAI_MAX_APPROVAL_YAW = if ($env:VISIONAI_MAX_APPROVAL_YAW) { $env:VISIONAI_MAX_APPROVAL_YAW } else { "4.5" }
 
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
 if (-not $pythonCmd) {
@@ -117,6 +121,7 @@ if ($usarPostgresRender) {
     Write-Host "CSV local:   $(Join-Path $env:VISIONAI_DATA_DIR "pacientes_medicoes.csv")"
 }
 Write-Host "Captura:     score $($env:VISIONAI_UI_CAPTURE_SCORE_MIN), $($env:VISIONAI_UI_CAPTURE_HOLD_MS)ms, $($env:VISIONAI_UI_TOTAL_CAPTURES) capturas, escala x$($env:VISIONAI_SCALE_MULTIPLIER), iris max $($env:VISIONAI_MAX_CAPTURE_IRIS_PX)px"
+Write-Host "Recorte:     x$($env:VISIONAI_UI_CROP_PADDING_X) / y$($env:VISIONAI_UI_CROP_PADDING_Y), revisar DNP>$($env:VISIONAI_MAX_DNP_DIFF_MM)mm, yaw>$($env:VISIONAI_MAX_APPROVAL_YAW)"
 Write-Host ""
 
 & $pythonCmd.Source app.py

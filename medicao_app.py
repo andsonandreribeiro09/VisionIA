@@ -59,6 +59,8 @@ def capture_ui_config():
         "incompatible_reset_ms": env_int("VISIONAI_UI_INCOMPATIBLE_RESET_MS", 1600 if modo_local else 2200),
         "geometry_score_min": env_float("VISIONAI_UI_MIN_GEOMETRY_SCORE", 65 if modo_local else 0),
         "max_iris_px": env_float("VISIONAI_MAX_CAPTURE_IRIS_PX", 18 if modo_local else 0),
+        "crop_padding_x": env_float("VISIONAI_UI_CROP_PADDING_X", 1.36),
+        "crop_padding_y": env_float("VISIONAI_UI_CROP_PADDING_Y", 1.22),
         "photo_max_width": env_int("VISIONAI_UI_PHOTO_MAX_WIDTH", 720 if modo_local else 960),
         "photo_quality": env_float("VISIONAI_UI_PHOTO_QUALITY", 0.68 if modo_local else 0.78),
     }
@@ -529,6 +531,13 @@ def salvar_lote():
 
     _, dp_min_ideal, dp_max_ideal, dp_min_seguro, dp_max_seguro = faixa_dp_paciente(paciente_calibracao)
     dp_fora_ideal = not (dp_min_ideal <= dp_final <= dp_max_ideal)
+    dnp_diferenca = abs(dnp_e_final - dnp_d_final)
+    yaw_medio = qualidade_resumo.get("yaw")
+    yaw_abs = abs(float(yaw_medio)) if yaw_medio is not None else 0
+    max_dnp_diferenca = env_float("VISIONAI_MAX_DNP_DIFF_MM", 5.0)
+    max_yaw_aprovacao = env_float("VISIONAI_MAX_APPROVAL_YAW", 4.5)
+    revisar_assimetria = dnp_diferenca > max_dnp_diferenca
+    revisar_pose = yaw_abs > max_yaw_aprovacao
     validar_faixa = os.getenv("VISIONAI_VALIDATE_DP_RANGE", "1" if modo_local else "0") == "1"
     if validar_faixa and not (dp_min_seguro <= dp_final <= dp_max_seguro):
         conn.close()
@@ -583,7 +592,7 @@ def salvar_lote():
 
     if erro_max > 2:
         status = "REPROVADO"
-    elif dp_fora_ideal:
+    elif dp_fora_ideal or revisar_assimetria or revisar_pose:
         status = "REVISAR"
     else:
         status = "APROVADO"
@@ -593,6 +602,10 @@ def salvar_lote():
         "erro_max": round(erro_max, 2),
         "metodo": "mediana" if usar_mediana else "media",
         "qualidade": qualidade_resumo,
+        "dnp_diferenca": round(dnp_diferenca, 2),
+        "yaw_abs": round(yaw_abs, 2),
+        "revisar_assimetria": revisar_assimetria,
+        "revisar_pose": revisar_pose,
         "status": status,
     }
 
