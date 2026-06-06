@@ -722,6 +722,33 @@ body{
     display:flex;
 }
 
+.capture-shell.resultado-visivel{
+    display:grid;
+    place-items:center;
+    background:#f7f5ef;
+}
+
+.capture-shell.resultado-visivel .camera-stage,
+.capture-shell.resultado-visivel .capture-header,
+.capture-shell.resultado-visivel #status,
+.capture-shell.resultado-visivel .technical-values,
+.capture-shell.resultado-visivel .patient-guide,
+.capture-shell.resultado-visivel .btn-finalizar{
+    display:none;
+}
+
+.capture-shell.resultado-visivel .metrics-panel{
+    position:static;
+    width:min(440px, calc(100vw - 32px));
+    height:auto;
+    max-height:none;
+    padding:20px;
+    background:#fff;
+    border:1px solid #e7dfd3;
+    box-shadow:0 18px 48px rgba(16,32,36,0.18);
+    overflow:visible;
+}
+
 .capture-shell:not(.resultado-visivel) #instrucao{
     left:50%;
     right:auto;
