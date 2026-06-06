@@ -918,7 +918,10 @@ const TOTAL_CAPTURAS = Number(CAPTURE_CONFIG.total ?? 4);
 const CAPTURE_COOLDOWN_MS = Number(CAPTURE_CONFIG.cooldown_ms ?? 250);
 const REQUIRE_STABLE = Boolean(CAPTURE_CONFIG.require_stable ?? false);
 const STABLE_SAMPLES = Number(CAPTURE_CONFIG.stable_samples ?? 4);
+const STABLE_WINDOW_MS = Number(CAPTURE_CONFIG.stable_window_ms ?? 2600);
 const MAX_DP_SPREAD = Number(CAPTURE_CONFIG.max_dp_spread ?? 2);
+const MAX_DP_TREND = Number(CAPTURE_CONFIG.max_dp_trend ?? 1.2);
+const DP_BLOCK_MARGIN = Number(CAPTURE_CONFIG.block_dp_margin ?? 0);
 const MAX_CAPTURE_GAP = Number(CAPTURE_CONFIG.max_capture_gap ?? 3);
 const INCOMPATIBLE_RESET_MS = Number(CAPTURE_CONFIG.incompatible_reset_ms ?? 1800);
 const GEOMETRY_SCORE_MIN = Number(CAPTURE_CONFIG.geometry_score_min ?? 0);
@@ -1053,16 +1056,25 @@ function amplitude(lista, campo){
 function leituraEstavel(){
     const agora = Date.now();
     const recentes = leiturasRecentes
-        .filter(item => agora - item.em < 2600)
+        .filter(item => agora - item.em < STABLE_WINDOW_MS)
         .slice(-STABLE_SAMPLES);
 
     if(recentes.length < STABLE_SAMPLES){
         return false;
     }
 
+    const primeira = recentes[0];
+    const ultima = recentes[recentes.length - 1];
+    const dpSemTendencia = Math.abs(ultima.dp - primeira.dp) <= MAX_DP_TREND;
+    const dnpESemTendencia = Math.abs(ultima.dnpE - primeira.dnpE) <= MAX_DP_TREND;
+    const dnpDSemTendencia = Math.abs(ultima.dnpD - primeira.dnpD) <= MAX_DP_TREND;
+
     return amplitude(recentes, "dp") <= MAX_DP_SPREAD
         && amplitude(recentes, "dnpE") <= MAX_DP_SPREAD
-        && amplitude(recentes, "dnpD") <= MAX_DP_SPREAD;
+        && amplitude(recentes, "dnpD") <= MAX_DP_SPREAD
+        && dpSemTendencia
+        && dnpESemTendencia
+        && dnpDSemTendencia;
 }
 
 function compativelComCapturas(dp){
@@ -1204,9 +1216,14 @@ let loopIA = setInterval(async () => {
         const irisNoIdeal = irisTemLeitura
             && (IRIS_IDEAL_MIN_PX <= 0 || irisPx >= IRIS_IDEAL_MIN_PX)
             && (IRIS_IDEAL_MAX_PX <= 0 || irisPx <= IRIS_IDEAL_MAX_PX);
+        const dpMinPerfil = numero(data.dp_min, 0);
+        const dpMaxPerfil = numero(data.dp_max, 0);
+        const dpMuitoBaixa = DP_BLOCK_MARGIN > 0 && dpMinPerfil > 0 && dp < (dpMinPerfil - DP_BLOCK_MARGIN);
+        const dpMuitoAlta = DP_BLOCK_MARGIN > 0 && dpMaxPerfil > 0 && dp > (dpMaxPerfil + DP_BLOCK_MARGIN);
+        const dpPerfilOk = !dpMuitoBaixa && !dpMuitoAlta;
         const distanciaManualOk = !irisTemLeitura || (!irisMuitoLonge && !irisMuitoPerto);
         const distanciaOk = data.dist_ok !== false && distanciaManualOk;
-        const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false && faceOk && geometriaOk && distanciaOk;
+        const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false && faceOk && geometriaOk && distanciaOk && dpPerfilOk;
         const estavel = leituraEstavel();
         const estabilidadeOk = !REQUIRE_STABLE || (data.confiavel && estavel);
         const leituraBoa = frameRecente && medidasValidas && posicaoOk && estabilidadeOk && score >= CAPTURE_SCORE_MIN;
@@ -1245,6 +1262,18 @@ let loopIA = setInterval(async () => {
             faceGuide.style.borderColor = "yellow";
             instrucaoEl.innerText = data.instrucao || "Ajuste a distancia";
             statusEl.innerText = "Ajuste a distancia";
+            statusEl.style.background = "#664d03";
+        }
+        else if(frameRecente && dpMuitoAlta){
+            faceGuide.style.borderColor = "yellow";
+            instrucaoEl.innerText = "Afaste um pouco o tablet";
+            statusEl.innerText = "DP alta";
+            statusEl.style.background = "#664d03";
+        }
+        else if(frameRecente && dpMuitoBaixa){
+            faceGuide.style.borderColor = "yellow";
+            instrucaoEl.innerText = "Aproxime um pouco o tablet";
+            statusEl.innerText = "DP baixa";
             statusEl.style.background = "#664d03";
         }
         else if(score > CAPTURE_RESET_SCORE && frameRecente){

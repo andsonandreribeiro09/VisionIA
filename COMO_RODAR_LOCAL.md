@@ -71,7 +71,8 @@ O script local usa:
 - DP muito fora da faixa segura pede nova medicao em vez de salvar
 - banco padrao: SQLite local de teste
 - CSV local: `data\pacientes_medicoes.csv`
-- resultado final: leitura estabilizada antes da captura final
+- resultado final: leitura estabilizada antes da captura final, sem tendencia de DP subindo ou descendo
+- DP fora do perfil durante a captura pede ajuste antes de salvar
 - foto enviada: reduzida para acelerar o salvamento pelo tunel
 - fator local de escala: 1.00, sem compensacao artificial de DP
 - camada de qualidade em observacao: yaw, pitch, roll, iris, distancia, centro da face e ambiente sao salvos para auditoria, sem bloquear o fluxo
@@ -80,9 +81,14 @@ Para alterar, defina estas variaveis no `.env.local`:
 
 ```text
 VISIONAI_UI_CAPTURE_SCORE_MIN=82
-VISIONAI_MIN_STABLE_SECONDS=0.45
-VISIONAI_UI_CAPTURE_HOLD_MS=300
+VISIONAI_MIN_STABLE_SECONDS=0.30
+VISIONAI_UI_CAPTURE_HOLD_MS=180
 VISIONAI_UI_TOTAL_CAPTURES=1
+VISIONAI_UI_STABLE_SAMPLES=2
+VISIONAI_UI_STABLE_WINDOW_MS=1200
+VISIONAI_UI_MAX_DP_SPREAD=0.9
+VISIONAI_UI_MAX_DP_TREND=0.45
+VISIONAI_UI_BLOCK_DP_MARGIN=0.3
 VISIONAI_UI_PHOTO_MAX_WIDTH=720
 VISIONAI_UI_PHOTO_QUALITY=0.68
 VISIONAI_USE_MEDIAN_RESULT=1
