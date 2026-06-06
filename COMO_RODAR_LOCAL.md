@@ -71,7 +71,7 @@ O script local usa:
 - CSV local: `data\pacientes_medicoes.csv`
 - resultado final: mediana das 3 capturas, para reduzir queda causada por uma captura isolada
 - foto enviada: reduzida para acelerar o salvamento pelo tunel
-- fator local de escala: 1.04, para compensar a tendencia do tablet medir DP um pouco abaixo
+- fator local de escala: 1.00, sem compensacao artificial de DP
 - camada de qualidade em observacao: yaw, pitch, roll, iris, distancia, centro da face e ambiente sao salvos para auditoria, sem bloquear o fluxo
 
 Para alterar, defina estas variaveis no `.env.local`:
@@ -83,5 +83,5 @@ VISIONAI_UI_TOTAL_CAPTURES=3
 VISIONAI_UI_PHOTO_MAX_WIDTH=720
 VISIONAI_UI_PHOTO_QUALITY=0.68
 VISIONAI_USE_MEDIAN_RESULT=1
-VISIONAI_SCALE_MULTIPLIER=1.04
+VISIONAI_SCALE_MULTIPLIER=1.00
 ```
