@@ -763,9 +763,10 @@ function calcularRecorteFonte(){
     return { sx, sy, sw, sh };
 }
 
-function desenharRecorteCentral(canvas, larguraMaxima){
+function desenharRecorteCentral(canvas, larguraMaxima, preservarEscalaCompleta = false){
     const recorte = calcularRecorteFonte();
-    const fator = Math.min(larguraMaxima / recorte.sw, 1);
+    const larguraReferencia = preservarEscalaCompleta ? (videoEl.videoWidth || recorte.sw) : recorte.sw;
+    const fator = Math.min(larguraMaxima / larguraReferencia, 1);
     canvas.width = Math.max(1, Math.round(recorte.sw * fator));
     canvas.height = Math.max(1, Math.round(recorte.sh * fator));
 
@@ -908,7 +909,7 @@ async function enviarFramesParaIA(){
     processandoFrame = true;
 
     try{
-        desenharRecorteCentral(frameCanvas, PROCESS_MAX_WIDTH);
+        desenharRecorteCentral(frameCanvas, PROCESS_MAX_WIDTH, true);
 
         const resp = await fetch("/process-frame", {
             method: "POST",
