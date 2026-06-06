@@ -34,6 +34,7 @@ MAX_DP_STD_MM = _env_float("VISIONAI_MAX_DP_STD_MM", 1.1)
 MIN_STABLE_FRAMES = int(_env_float("VISIONAI_MIN_STABLE_FRAMES", 4))
 MIN_STABLE_SECONDS = _env_float("VISIONAI_MIN_STABLE_SECONDS", 0.55)
 IRIS_PX_AT_TARGET_DISTANCE = _env_float("VISIONAI_IRIS_PX_AT_40CM", 0.0)
+MIN_CAPTURE_IRIS_PX = _env_float("VISIONAI_MIN_CAPTURE_IRIS_PX", 0.0)
 MAX_CAPTURE_IRIS_PX = _env_float("VISIONAI_MAX_CAPTURE_IRIS_PX", 0.0)
 CAPTURED_RESET_SECONDS = _env_float("VISIONAI_CAPTURED_RESET_SECONDS", 3.0)
 SECONDARY_FACE_MAX_RATIO = _env_float("VISIONAI_SECONDARY_FACE_MAX_RATIO", 0.18)
@@ -337,6 +338,7 @@ def processar_frame(frame):
     # ÍRIS
     # -----------------------------
     iris_px = calcular_diametro_iris(lm, w, h)
+    iris_muito_longe = MIN_CAPTURE_IRIS_PX > 0 and iris_px < MIN_CAPTURE_IRIS_PX
     iris_muito_perto = MAX_CAPTURE_IRIS_PX > 0 and iris_px > MAX_CAPTURE_IRIS_PX
 
     if iris_px < 5:
@@ -442,9 +444,9 @@ def processar_frame(frame):
     cabeca_ok = cabeca_desvio < 6
     centro_ok = centro_desvio < w * 0.12
     if distancia_cm is not None:
-        dist_ok = abs(distancia_cm - TARGET_DISTANCE_CM) <= 7 and not iris_muito_perto
+        dist_ok = abs(distancia_cm - TARGET_DISTANCE_CM) <= 7 and not iris_muito_perto and not iris_muito_longe
     else:
-        dist_ok = 8 < iris_px < 90 and not iris_muito_perto
+        dist_ok = 8 < iris_px < 90 and not iris_muito_perto and not iris_muito_longe
 
     if olhos_ok:
         score += 30
@@ -581,11 +583,13 @@ def processar_frame(frame):
             instrucao = "Endireite a cabeça"
         elif not dist_ok:
             if iris_muito_perto:
-                instrucao = "Afaste o rosto da camera"
+                instrucao = "Afaste um pouco o tablet"
+            elif iris_muito_longe:
+                instrucao = "Aproxime um pouco o tablet"
             elif distancia_cm is not None:
                 instrucao = f"Ajuste para {TARGET_DISTANCE_CM:.0f} cm"
             else:
-                instrucao = "Mantenha 40 cm da camera"
+                instrucao = "Ajuste a distancia"
         elif not centro_ok:
             instrucao = "Centralize o rosto"
         elif score >= 80:

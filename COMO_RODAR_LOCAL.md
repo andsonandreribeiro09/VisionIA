@@ -62,8 +62,10 @@ Esse painel local lê o mesmo banco SQLite de teste usado pela medição local.
 O script local usa:
 
 - score minimo: 82
-- tempo parado: 900 ms
+- tempo parado: 300 ms na tela, com 0.45s de estabilidade interna
 - capturas por medicao: 1 captura estabilizada
+- modo tablet na mao: captura apenas com iris entre 10.0 e 14.5 px, idealmente entre 11.0 e 13.9 px
+- tela do paciente: sem DP/DNP durante a captura; os numeros aparecem so na previa final do operador
 - lote aprovado apenas quando as leituras ficam com baixa variacao
 - calibracao facial so e aplicada quando tiver pelo menos 3 amostras confiaveis
 - DP muito fora da faixa segura pede nova medicao em vez de salvar
@@ -78,10 +80,16 @@ Para alterar, defina estas variaveis no `.env.local`:
 
 ```text
 VISIONAI_UI_CAPTURE_SCORE_MIN=82
-VISIONAI_UI_CAPTURE_HOLD_MS=900
+VISIONAI_MIN_STABLE_SECONDS=0.45
+VISIONAI_UI_CAPTURE_HOLD_MS=300
 VISIONAI_UI_TOTAL_CAPTURES=1
 VISIONAI_UI_PHOTO_MAX_WIDTH=720
 VISIONAI_UI_PHOTO_QUALITY=0.68
 VISIONAI_USE_MEDIAN_RESULT=1
 VISIONAI_SCALE_MULTIPLIER=1.00
+VISIONAI_MIN_CAPTURE_IRIS_PX=10.0
+VISIONAI_MAX_CAPTURE_IRIS_PX=14.5
+VISIONAI_IDEAL_CAPTURE_IRIS_MIN_PX=11.0
+VISIONAI_IDEAL_CAPTURE_IRIS_MAX_PX=13.9
+VISIONAI_RESULT_PREVIEW_MS=5500
 ```

@@ -296,6 +296,100 @@ body{
     overflow:auto;
 }
 
+.patient-guide{
+    display:grid;
+    gap:10px;
+    padding:14px;
+    border:1px solid #e3ded5;
+    border-radius:8px;
+    background:#fff;
+}
+
+.patient-guide strong{
+    color:#102024;
+    font-size:16px;
+}
+
+.patient-guide span{
+    color:#607074;
+    font-size:13px;
+    line-height:1.35;
+}
+
+.capture-shell:not(.resultado-visivel) .technical-values{
+    display:none;
+}
+
+.operator-result{
+    display:none;
+    gap:12px;
+}
+
+.capture-shell.resultado-visivel .patient-guide{
+    display:none;
+}
+
+.capture-shell.resultado-visivel .operator-result{
+    display:grid;
+}
+
+.result-title{
+    display:grid;
+    gap:4px;
+    padding:14px;
+    border-radius:8px;
+    background:#102024;
+    color:#fff;
+}
+
+.result-title span{
+    color:#9ee8ef;
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+
+.result-title strong{
+    font-size:22px;
+    line-height:1.1;
+}
+
+.result-grid{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:10px;
+}
+
+.result-box{
+    min-height:76px;
+    padding:10px;
+    display:grid;
+    align-content:center;
+    gap:4px;
+    border:1px solid #e3ded5;
+    border-radius:8px;
+    background:#fff;
+    text-align:center;
+}
+
+.result-box span{
+    color:#647174;
+    font-size:11px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+
+.result-box b{
+    color:#0d1b1e;
+    font-size:24px;
+    line-height:1;
+}
+
+.result-footer{
+    color:#607074;
+    font-size:13px;
+}
+
 .capture-header{
     display:grid;
     gap:4px;
@@ -370,6 +464,7 @@ body{
 }
 
 .capture-shell .btn-finalizar{
+    display:none;
     margin-top:auto;
     min-height:54px;
     padding:0 16px;
@@ -414,6 +509,10 @@ body{
         padding:9px 10px;
     }
 
+    .patient-guide{
+        display:none;
+    }
+
     .capture-shell .hud{
         grid-template-columns:repeat(4, minmax(0, 1fr));
         gap:8px;
@@ -434,6 +533,11 @@ body{
 
     .capture-shell .btn-finalizar{
         min-height:46px;
+    }
+
+    .result-grid{
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+        gap:8px;
     }
 
     #instrucao{
@@ -482,6 +586,31 @@ body{
         font-size:11px;
         line-height:1.25;
         overflow:hidden;
+    }
+
+    .capture-shell.resultado-visivel .metrics-panel{
+        max-height:58svh;
+    }
+
+    .result-title{
+        padding:10px;
+    }
+
+    .result-title strong{
+        font-size:18px;
+    }
+
+    .result-grid{
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+    }
+
+    .result-box{
+        min-height:58px;
+        padding:8px 4px;
+    }
+
+    .result-box b{
+        font-size:18px;
     }
 
     .capture-shell .card{
@@ -628,8 +757,13 @@ body{
     Iniciando câmera...
 </div>
 
+<div class="patient-guide">
+    <strong>Olhe para a camera</strong>
+    <span>Encaixe o rosto no guia. O sistema captura automaticamente quando a distancia estiver boa.</span>
+</div>
+
 <!-- HUD MODERNO -->
-<div class="hud">
+<div class="hud technical-values">
 
     <div class="card">
         <span>DP</span>
@@ -653,6 +787,32 @@ body{
         <small>%</small>
     </div>
 
+</div>
+
+<div id="resultado-operador" class="operator-result" hidden>
+    <div class="result-title">
+        <span id="resultado-ods">ODS</span>
+        <strong id="resultado-status">Resultado salvo</strong>
+    </div>
+
+    <div class="result-grid">
+        <div class="result-box">
+            <span>DP</span>
+            <b id="resultado-dp">--</b>
+        </div>
+        <div class="result-box">
+            <span>DNP E</span>
+            <b id="resultado-dnpe">--</b>
+        </div>
+        <div class="result-box">
+            <span>DNP D</span>
+            <b id="resultado-dnpd">--</b>
+        </div>
+    </div>
+
+    <div class="result-footer">
+        Voltando para o inicio...
+    </div>
 </div>
 
 <!-- BOTÃO -->
@@ -679,6 +839,13 @@ const statusEl = document.getElementById("status");
 const instrucaoEl = document.getElementById("instrucao");
 const progressBar = document.getElementById("progress-bar");
 const faceGuide = document.querySelector(".face-guide");
+const shellEl = document.querySelector(".capture-shell");
+const resultadoOperadorEl = document.getElementById("resultado-operador");
+const resultadoOdsEl = document.getElementById("resultado-ods");
+const resultadoStatusEl = document.getElementById("resultado-status");
+const resultadoDpEl = document.getElementById("resultado-dp");
+const resultadoDnpeEl = document.getElementById("resultado-dnpe");
+const resultadoDnpdEl = document.getElementById("resultado-dnpd");
 
 // CONTROLE
 let capturando = false;
@@ -705,11 +872,15 @@ const MAX_DP_SPREAD = Number(CAPTURE_CONFIG.max_dp_spread ?? 2);
 const MAX_CAPTURE_GAP = Number(CAPTURE_CONFIG.max_capture_gap ?? 3);
 const INCOMPATIBLE_RESET_MS = Number(CAPTURE_CONFIG.incompatible_reset_ms ?? 1800);
 const GEOMETRY_SCORE_MIN = Number(CAPTURE_CONFIG.geometry_score_min ?? 0);
+const IRIS_MIN_PX = Number(CAPTURE_CONFIG.min_iris_px ?? 0);
+const IRIS_MAX_PX = Number(CAPTURE_CONFIG.max_iris_px ?? 0);
+const IRIS_IDEAL_MIN_PX = Number(CAPTURE_CONFIG.ideal_iris_min_px ?? 0);
+const IRIS_IDEAL_MAX_PX = Number(CAPTURE_CONFIG.ideal_iris_max_px ?? 0);
 const CAPTURE_PHOTO_MAX_WIDTH = Number(CAPTURE_CONFIG.photo_max_width ?? 720);
 const CAPTURE_PHOTO_QUALITY = Number(CAPTURE_CONFIG.photo_quality ?? 0.68);
 const CROP_PADDING_X = Number(CAPTURE_CONFIG.crop_padding_x ?? 1.36);
 const CROP_PADDING_Y = Number(CAPTURE_CONFIG.crop_padding_y ?? 1.22);
-const CAPTURE_LABEL = TOTAL_CAPTURAS === 1 ? "captura" : "capturas";
+const RESULT_PREVIEW_MS = Number(CAPTURE_CONFIG.result_preview_ms ?? 5000);
 let ultimoFrameOkEm = 0;
 let ultimaCapturaEm = 0;
 let leituraIncompativelInicio = null;
@@ -968,33 +1139,6 @@ let loopIA = setInterval(async () => {
         dnp_dEl.innerText = dnpD.toFixed(1);
         scoreEl.innerText = score.toFixed(0);
 
-        const distanciaTexto = data.distancia_cm ? `\nDistancia: ${data.distancia_cm} cm` : "";
-        const estabilidadeTexto = data.confiavel ? "Estavel" : "Estabilizando";
-
-        // Status em tempo real
-        statusEl.innerText = `
-        ${data.sexo} | ${data.idade ?? "-"} anos
-        Faixa: ${data.faixa}
-        DP: ${dp.toFixed(1)} mm (ideal ${data.dp_min}-${data.dp_max})${distanciaTexto}
-        Score: ${score.toFixed(0)}% | ${estabilidadeTexto}
-        Capturas: ${medicoes.length}/${TOTAL_CAPTURAS}
-        `;
-
-        // =========================
-        // 🎨 COR DINÂMICA AQUI 👇
-        // =========================
-        if(data.status_dp === "normal"){
-            statusEl.style.background = "#0f5132"; // verde
-        }
-        else if(data.status_dp === "baixo"){
-            statusEl.style.background = "#664d03"; // amarelo
-        }
-        else if(data.status_dp === "alto"){
-            statusEl.style.background = "#842029"; // vermelho
-        }
-        else{
-            statusEl.style.background = "#000";
-        }
         // =========================
         // FEEDBACK VISUAL
         // =========================
@@ -1003,7 +1147,15 @@ let loopIA = setInterval(async () => {
         const scoreGeometrico = numero(data.score_geometrico);
         const geometriaOk = GEOMETRY_SCORE_MIN <= 0 || scoreGeometrico >= GEOMETRY_SCORE_MIN;
         const faceOk = data.face_ok !== false;
-        const distanciaOk = data.dist_ok !== false;
+        const irisPx = numero(data.iris_px, NaN);
+        const irisTemLeitura = Number.isFinite(irisPx) && irisPx > 0;
+        const irisMuitoLonge = IRIS_MIN_PX > 0 && irisTemLeitura && irisPx < IRIS_MIN_PX;
+        const irisMuitoPerto = IRIS_MAX_PX > 0 && irisTemLeitura && irisPx > IRIS_MAX_PX;
+        const irisNoIdeal = irisTemLeitura
+            && (IRIS_IDEAL_MIN_PX <= 0 || irisPx >= IRIS_IDEAL_MIN_PX)
+            && (IRIS_IDEAL_MAX_PX <= 0 || irisPx <= IRIS_IDEAL_MAX_PX);
+        const distanciaManualOk = !irisTemLeitura || (!irisMuitoLonge && !irisMuitoPerto);
+        const distanciaOk = data.dist_ok !== false && distanciaManualOk;
         const posicaoOk = data.olhos_ok !== false && data.cabeca_ok !== false && data.centro_ok !== false && faceOk && geometriaOk && distanciaOk;
         const estavel = leituraEstavel();
         const estabilidadeOk = !REQUIRE_STABLE || (data.confiavel && estavel);
@@ -1011,27 +1163,51 @@ let loopIA = setInterval(async () => {
 
         if(leituraBoa){
             faceGuide.style.borderColor = "lime";
-            instrucaoEl.innerText = "Perfeito! Nao se mova...";
+            instrucaoEl.innerText = "Perfeito. Fique parado.";
+            statusEl.innerText = "Captura pronta";
+            statusEl.style.background = "#0f5132";
         } 
         else if(frameRecente && !faceOk){
             faceGuide.style.borderColor = "red";
             instrucaoEl.innerText = "Deixe apenas o paciente no quadro";
+            statusEl.innerText = "Apenas um rosto";
+            statusEl.style.background = "#842029";
+        }
+        else if(frameRecente && irisMuitoPerto){
+            faceGuide.style.borderColor = "yellow";
+            instrucaoEl.innerText = "Afaste um pouco o tablet";
+            statusEl.innerText = "Muito perto";
+            statusEl.style.background = "#664d03";
+        }
+        else if(frameRecente && irisMuitoLonge){
+            faceGuide.style.borderColor = "yellow";
+            instrucaoEl.innerText = "Aproxime um pouco o tablet";
+            statusEl.innerText = "Muito longe";
+            statusEl.style.background = "#664d03";
         }
         else if(frameRecente && !geometriaOk){
             faceGuide.style.borderColor = "yellow";
             instrucaoEl.innerText = "Centralize o rosto e endireite a cabeca";
+            statusEl.innerText = "Ajuste a posicao";
+            statusEl.style.background = "#664d03";
         }
         else if(frameRecente && !distanciaOk){
             faceGuide.style.borderColor = "yellow";
-            instrucaoEl.innerText = data.instrucao || "Afaste o rosto da camera";
+            instrucaoEl.innerText = data.instrucao || "Ajuste a distancia";
+            statusEl.innerText = "Ajuste a distancia";
+            statusEl.style.background = "#664d03";
         }
         else if(score > CAPTURE_RESET_SCORE && frameRecente){
             faceGuide.style.borderColor = "yellow";
-            instrucaoEl.innerText = estavel ? (data.instrucao || "Ajuste levemente...") : "Estabilizando leitura...";
+            instrucaoEl.innerText = estavel ? (irisNoIdeal ? "Fique parado" : (data.instrucao || "Ajuste levemente")) : "Segure firme";
+            statusEl.innerText = irisNoIdeal ? "Distancia boa" : "Quase pronto";
+            statusEl.style.background = "#664d03";
         } 
         else{
             faceGuide.style.borderColor = "red";
             instrucaoEl.innerText = frameRecente ? (data.instrucao || "Posicione melhor o rosto") : "Aguardando leitura da camera...";
+            statusEl.innerText = "Encaixe o rosto";
+            statusEl.style.background = "#000";
         }
 
         // =========================
@@ -1051,9 +1227,8 @@ let loopIA = setInterval(async () => {
             }
 
             let tempoMs = Date.now() - tempoInicio;
-            let restante = Math.max((CAPTURE_HOLD_MS - tempoMs) / 1000, 0);
 
-            instrucaoEl.innerText = `Capturando em ${restante.toFixed(1)}s`;
+            instrucaoEl.innerText = "Capturando...";
             progressBar.style.width = Math.min((tempoMs / CAPTURE_HOLD_MS) * 100, 100) + "%";
 
             // quando completar tempo → captura
@@ -1081,7 +1256,7 @@ let loopIA = setInterval(async () => {
         }
 
     }catch(e){
-        statusEl.innerText = `${medicoes.length}/${TOTAL_CAPTURAS} ${CAPTURE_LABEL} concluída${TOTAL_CAPTURAS === 1 ? "" : "s"}`;
+        statusEl.innerText = "Aguardando captura";
     }
 
 }, DATA_INTERVAL_MS);
@@ -1145,7 +1320,7 @@ function salvarCaptura(){
 
     ultimaCapturaEm = agora;
     leituraIncompativelInicio = null;
-    statusEl.innerText = `Captura ${Math.min(medicoes.length, TOTAL_CAPTURAS)}/${TOTAL_CAPTURAS}`;
+    statusEl.innerText = "Captura concluida";
     if(medicoes.length < TOTAL_CAPTURAS){
         leiturasRecentes = [];
         fetch("/reset_captura_engine", { method: "POST" }).catch(() => {});
@@ -1164,7 +1339,7 @@ function finalizar(){
     enviandoLote = true;
     medicoes = medicoes.slice(0, TOTAL_CAPTURAS);
 
-    statusEl.innerText = "📊 Validando medições...";
+    statusEl.innerText = "Salvando medicao...";
 
     fetch("/salvar_lote", {
         method: "POST",
@@ -1184,22 +1359,23 @@ function finalizar(){
             leiturasRecentes = [];
             progressBar.style.width = "0%";
             fetch("/reset_captura_engine", { method: "POST" }).catch(() => {});
-            statusEl.innerText = resp.msg || "❌ Erro ao salvar medições";
+            statusEl.innerText = resp.msg || "Erro ao salvar medicao";
             return;
         }
 
-        // =========================
-        // 🔥 RESULTADO NA TELA
-        // =========================
-        const statusFinal = resp.status_validacao === "APROVADO"
-            ? "✅ APROVADO"
-            : (resp.status_validacao === "REVISAR" ? "⚠️ REVISAR" : "❌ REPROVADO");
-        statusEl.innerText = `
-ODS: ${resp.ods || "-"}
-DP médio: ${resp.dp_medio}mm  
-Erro: ${resp.erro_max}mm  
-${statusFinal}
-        `;
+        const statusFinal = resp.status_validacao || "SALVO";
+        shellEl.classList.add("resultado-visivel");
+        if(resultadoOperadorEl){
+            resultadoOperadorEl.hidden = false;
+        }
+        resultadoOdsEl.innerText = resp.ods || "ODS";
+        resultadoStatusEl.innerText = statusFinal;
+        resultadoDpEl.innerText = `${numero(resp.dp_medio).toFixed(1)}`;
+        resultadoDnpeEl.innerText = `${numero(resp.dnp_e_media).toFixed(1)}`;
+        resultadoDnpdEl.innerText = `${numero(resp.dnp_d_media).toFixed(1)}`;
+        statusEl.innerText = "Resultado salvo";
+        statusEl.style.background = statusFinal === "APROVADO" ? "#0f5132" : (statusFinal === "REVISAR" ? "#664d03" : "#842029");
+        instrucaoEl.innerText = "Captura concluida";
 
         // =========================
         // 🔥 PARA LOOP DA IA
@@ -1230,15 +1406,14 @@ ${statusFinal}
             videoEl.srcObject = null;
         }
 
-        // =========================
-        // 🔥 REDIRECIONA
-        // =========================
-        window.location.replace("/");
+        setTimeout(() => {
+            window.location.replace("/");
+        }, RESULT_PREVIEW_MS);
 
     })
     .catch(err => {
         console.error(err);
-        statusEl.innerText = "❌ Falha na comunicação com servidor";
+        statusEl.innerText = "Falha na comunicacao com servidor";
         finalizado = false;
         enviandoLote = false;
     });
