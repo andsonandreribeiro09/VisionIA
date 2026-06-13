@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $projectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $projectDir
 
-$envFile = Join-Path $projectDir ".env.local"
+$envFile = if ($env:VISIONAI_ENV_FILE) { $env:VISIONAI_ENV_FILE } else { Join-Path $projectDir ".env.local" }
 if (Test-Path $envFile) {
     Get-Content $envFile | ForEach-Object {
         $line = $_.Trim()

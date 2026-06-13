@@ -29,8 +29,9 @@ if (-not $cloudflaredPath) {
 
 if ((Test-Path $configFixo) -and -not $usarTunelRapido) {
     Write-Host "Abrindo tunel fixo Cloudflare."
-    Write-Host "Medicao:      https://medicao.visioniaotica.com.br"
-    Write-Host "Laboratorio:  https://lab.visioniaotica.com.br"
+    Write-Host "Medicao:      https://detectavision-medicao.visioniaotica.com.br"
+    Write-Host "Laboratorio:  https://detectavision-lab.visioniaotica.com.br"
+    Write-Host "Admin:        https://admin.visioniaotica.com.br/admin"
     Write-Host ""
     Write-Host "Mantenha esta janela aberta enquanto usa o sistema."
     Write-Host ""

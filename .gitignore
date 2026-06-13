@@ -3,6 +3,7 @@ __pycache__/
 *.db
 .env
 .env.local
+.env.*.local
 instance/
 static/fotos/
 static/relatorios/
