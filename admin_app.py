@@ -330,6 +330,10 @@ def admin_logout():
 @requer_admin
 def admin_dashboard():
     lojas = carregar_lojas()
+    loja_ativa_id = request.args.get("loja", type=int)
+    loja_ativa = None
+    if lojas:
+        loja_ativa = next((loja for loja in lojas if loja["id"] == loja_ativa_id), lojas[0])
     defaults = {
         "nome": "Detecta Vision Osasco",
         "cidade": "Osasco/SP",
@@ -343,6 +347,7 @@ def admin_dashboard():
     return render_template(
         "admin.html",
         lojas=lojas,
+        loja_ativa=loja_ativa,
         defaults=defaults,
         admin_user=ADMIN_USER,
         mensagem=request.args.get("msg"),
@@ -400,7 +405,7 @@ def admin_criar_loja():
         return redirect(url_for("admin_dashboard", erro=f"Nao foi possivel criar a loja: {exc}"))
 
     conn.close()
-    return redirect(url_for("admin_dashboard", msg=f"Loja {nome} criada."))
+    return redirect(url_for("admin_dashboard", loja=loja_pk, msg=f"Loja {nome} criada."))
 
 
 @app.route("/admin/lojas/<int:loja_pk>/editar", methods=["POST"])
@@ -464,7 +469,7 @@ def admin_editar_loja(loja_pk):
         return redirect(url_for("admin_dashboard", erro=f"Nao foi possivel editar a loja: {exc}"))
 
     conn.close()
-    return redirect(url_for("admin_dashboard", msg=f"Loja {nome} atualizada."))
+    return redirect(url_for("admin_dashboard", loja=loja_pk, msg=f"Loja {nome} atualizada."))
 
 
 @app.route("/admin/lojas/<int:loja_pk>/status", methods=["POST"])
@@ -481,7 +486,7 @@ def admin_status_loja(loja_pk):
     registrar_evento(cursor, loja_pk, "status", f"Status alterado para {status}.")
     conn.commit()
     conn.close()
-    return redirect(url_for("admin_dashboard", msg=f"Status alterado para {status}."))
+    return redirect(url_for("admin_dashboard", loja=loja_pk, msg=f"Status alterado para {status}."))
 
 
 @app.route("/admin/lojas/<int:loja_pk>/renovar", methods=["POST"])
@@ -511,7 +516,7 @@ def admin_renovar_loja(loja_pk):
     registrar_evento(cursor, loja_pk, "renovacao", f"Licenca renovada por {dias} dias ate {novo_vencimento}.")
     conn.commit()
     conn.close()
-    return redirect(url_for("admin_dashboard", msg=f"Licenca renovada ate {novo_vencimento}."))
+    return redirect(url_for("admin_dashboard", loja=loja_pk, msg=f"Licenca renovada ate {novo_vencimento}."))
 
 
 @app.route("/api/licenca/verificar", methods=["POST"])

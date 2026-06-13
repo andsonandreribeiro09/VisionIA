@@ -51,6 +51,46 @@ aside a{
     text-decoration:none;
 }
 aside a.active{background:var(--brand);color:#fff}
+.side-card{
+    display:grid;
+    gap:10px;
+    margin-top:22px;
+    padding-top:18px;
+    border-top:1px solid var(--line);
+}
+.side-kicker{
+    color:var(--muted);
+    font-size:12px;
+    font-weight:900;
+    text-transform:uppercase;
+}
+.side-store{
+    display:grid;
+    gap:4px;
+}
+.side-store strong{font-size:15px}
+.side-actions{
+    display:grid;
+    gap:8px;
+}
+.side-actions form{margin:0}
+.side-actions button,
+.side-actions a.side-button{
+    display:flex;
+    width:100%;
+    min-height:42px;
+    align-items:center;
+    justify-content:center;
+    margin:0;
+    padding:0 12px;
+    border-radius:8px;
+    text-align:center;
+}
+.side-actions a.side-button{
+    background:#102024;
+    color:#fff;
+    font-weight:900;
+}
 .muted{color:var(--muted)}
 main{padding:28px}
 .top{
@@ -135,6 +175,21 @@ th{
     display:flex;
     flex-wrap:wrap;
     gap:8px;
+}
+.selected-row td{
+    background:#f0fbfc;
+}
+.select-store{
+    display:inline-flex;
+    width:max-content;
+    min-height:32px;
+    padding:0 10px;
+    align-items:center;
+    border-radius:8px;
+    background:#eaf7f8;
+    color:var(--brand);
+    font-weight:900;
+    text-decoration:none;
 }
 .edit-row td{
     padding-top:0;
@@ -232,6 +287,40 @@ label{
         <a class="active" href="/admin">Lojas</a>
         <a href="/admin/logout">Sair</a>
         <p class="muted">Usuario: {{ admin_user }}</p>
+
+        {% set loja_lateral = loja_ativa if loja_ativa is defined and loja_ativa else (lojas[0] if lojas else none) %}
+        {% if loja_lateral %}
+        <div class="side-card">
+            <span class="side-kicker">Loja selecionada</span>
+            <div class="side-store">
+                <strong>{{ loja_lateral.nome }}</strong>
+                <span class="muted">{{ loja_lateral.cidade or "-" }}</span>
+                <span class="code">{{ loja_lateral.loja_id }}</span>
+                <span class="pill {{ 'ok' if loja_lateral.status == 'ativo' else 'warn' }}">{{ loja_lateral.status }}</span>
+                <span class="pill {{ 'ok' if loja_lateral.online else 'off' }}">{{ 'online' if loja_lateral.online else 'offline' }}</span>
+            </div>
+            <div class="side-actions">
+                <form method="post" action="/admin/lojas/{{ loja_lateral.id }}/renovar">
+                    <input type="hidden" name="dias" value="30">
+                    <button type="submit">+30 dias</button>
+                </form>
+
+                {% if loja_lateral.status == 'ativo' %}
+                <form method="post" action="/admin/lojas/{{ loja_lateral.id }}/status">
+                    <input type="hidden" name="status" value="suspenso">
+                    <button class="danger" type="submit">Suspender loja</button>
+                </form>
+                {% else %}
+                <form method="post" action="/admin/lojas/{{ loja_lateral.id }}/status">
+                    <input type="hidden" name="status" value="ativo">
+                    <button class="secondary" type="submit">Ativar loja</button>
+                </form>
+                {% endif %}
+
+                <a class="side-button" href="#editar-loja-{{ loja_lateral.id }}">Editar loja</a>
+            </div>
+        </div>
+        {% endif %}
     </aside>
 
     <main>
@@ -262,12 +351,11 @@ label{
                                 <th>Status</th>
                                 <th>Licenca</th>
                                 <th>Ultimo check-in</th>
-                                <th>Acoes</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for loja in lojas %}
-                            <tr>
+                            <tr class="{{ 'selected-row' if loja_lateral and loja.id == loja_lateral.id else '' }}">
                                 <td>
                                     <div class="store">
                                         <strong>{{ loja.nome }}</strong>
@@ -275,6 +363,7 @@ label{
                                         <span class="code">{{ loja.loja_id }}</span>
                                         <span class="muted">{{ loja.dominio_medicao or "-" }}</span>
                                         <span class="muted">{{ loja.dominio_lab or "-" }}</span>
+                                        <a class="select-store" href="{{ url_for('admin_dashboard', loja=loja.id) }}">Selecionar loja</a>
                                     </div>
                                 </td>
                                 <td>
@@ -297,29 +386,9 @@ label{
                                         <span class="muted">Banco: {{ loja.banco_status or "-" }}</span>
                                     </div>
                                 </td>
-                                <td>
-                                    <div class="actions">
-                                        <form class="inline" method="post" action="/admin/lojas/{{ loja.id }}/renovar">
-                                            <input type="hidden" name="dias" value="30">
-                                            <button type="submit">+30 dias</button>
-                                        </form>
-
-                                        {% if loja.status == 'ativo' %}
-                                        <form class="inline" method="post" action="/admin/lojas/{{ loja.id }}/status">
-                                            <input type="hidden" name="status" value="suspenso">
-                                            <button class="danger" type="submit">Suspender</button>
-                                        </form>
-                                        {% else %}
-                                        <form class="inline" method="post" action="/admin/lojas/{{ loja.id }}/status">
-                                            <input type="hidden" name="status" value="ativo">
-                                            <button class="secondary" type="submit">Reativar</button>
-                                        </form>
-                                        {% endif %}
-                                    </div>
-                                </td>
                             </tr>
-                            <tr class="edit-row">
-                                <td colspan="5">
+                            <tr class="edit-row" id="editar-loja-{{ loja.id }}">
+                                <td colspan="4">
                                     <details class="edit-store">
                                         <summary>Editar loja existente</summary>
                                         <form class="edit-grid" method="post" action="/admin/lojas/{{ loja.id }}/editar">
@@ -357,7 +426,7 @@ label{
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="muted">Nenhuma loja cadastrada.</td>
+                                <td colspan="4" class="muted">Nenhuma loja cadastrada.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -415,5 +484,16 @@ POST /api/licenca/verificar<br>
         </section>
     </main>
 </div>
+<script>
+function abrirEdicaoDaLoja(){
+    const alvo = window.location.hash ? document.querySelector(window.location.hash) : null;
+    if (!alvo) return;
+    const details = alvo.querySelector("details");
+    if (details) details.open = true;
+    alvo.scrollIntoView({block: "center"});
+}
+window.addEventListener("hashchange", abrirEdicaoDaLoja);
+abrirEdicaoDaLoja();
+</script>
 </body>
 </html>
