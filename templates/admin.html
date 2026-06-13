@@ -136,6 +136,35 @@ th{
     flex-wrap:wrap;
     gap:8px;
 }
+.edit-row td{
+    padding-top:0;
+    background:#fffdf9;
+}
+.edit-store{
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--soft);
+}
+.edit-store summary{
+    display:inline-flex;
+    min-height:40px;
+    margin:12px;
+    padding:0 12px;
+    align-items:center;
+    border-radius:8px;
+    background:#102024;
+    color:#fff;
+    font-weight:900;
+    cursor:pointer;
+    list-style:none;
+}
+.edit-store summary::-webkit-details-marker{display:none}
+.edit-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+    padding:0 12px 12px;
+}
 form.inline{
     display:flex;
     gap:6px;
@@ -191,6 +220,7 @@ label{
     .layout{grid-template-columns:1fr}
     aside{border-right:0;border-bottom:1px solid var(--line)}
     .grid{grid-template-columns:1fr}
+    .edit-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -286,6 +316,43 @@ label{
                                         </form>
                                         {% endif %}
                                     </div>
+                                </td>
+                            </tr>
+                            <tr class="edit-row">
+                                <td colspan="5">
+                                    <details class="edit-store">
+                                        <summary>Editar loja existente</summary>
+                                        <form class="edit-grid" method="post" action="/admin/lojas/{{ loja.id }}/editar">
+                                            <label>Nome
+                                                <input name="nome" value="{{ loja.nome }}" required>
+                                            </label>
+                                            <label>Cidade
+                                                <input name="cidade" value="{{ loja.cidade or '' }}">
+                                            </label>
+                                            <label>ID da loja
+                                                <input name="loja_id" value="{{ loja.loja_id }}">
+                                            </label>
+                                            <label>Status
+                                                <select name="status">
+                                                    <option value="ativo" {% if loja.status == 'ativo' %}selected{% endif %}>ativo</option>
+                                                    <option value="suspenso" {% if loja.status == 'suspenso' %}selected{% endif %}>suspenso</option>
+                                                </select>
+                                            </label>
+                                            <label>Plano
+                                                <input name="plano" value="{{ loja.plano or '' }}">
+                                            </label>
+                                            <label>Vencimento
+                                                <input type="date" name="vencimento" value="{{ (loja.vence_em or loja.vencimento or '')[:10] }}">
+                                            </label>
+                                            <label>Dominio medicao
+                                                <input name="dominio_medicao" value="{{ loja.dominio_medicao or '' }}">
+                                            </label>
+                                            <label>Dominio laboratorio
+                                                <input name="dominio_lab" value="{{ loja.dominio_lab or '' }}">
+                                            </label>
+                                            <button type="submit">Salvar alteracoes</button>
+                                        </form>
+                                    </details>
                                 </td>
                             </tr>
                             {% else %}

@@ -337,8 +337,8 @@ def admin_dashboard():
         "status": "ativo",
         "plano": "validacao-30-dias",
         "vencimento": (datetime.now().date() + timedelta(days=30)).isoformat(),
-        "dominio_medicao": "medicao.detectavision.visioniaotica.com.br",
-        "dominio_lab": "lab.detectavision.visioniaotica.com.br",
+        "dominio_medicao": "detectavision-medicao.visioniaotica.com.br",
+        "dominio_lab": "detectavision-lab.visioniaotica.com.br",
     }
     return render_template(
         "admin.html",
@@ -401,6 +401,70 @@ def admin_criar_loja():
 
     conn.close()
     return redirect(url_for("admin_dashboard", msg=f"Loja {nome} criada."))
+
+
+@app.route("/admin/lojas/<int:loja_pk>/editar", methods=["POST"])
+@requer_admin
+def admin_editar_loja(loja_pk):
+    criar_tabelas_admin()
+    nome = (request.form.get("nome") or "").strip()
+    cidade = (request.form.get("cidade") or "").strip()
+    loja_id = (request.form.get("loja_id") or "").strip()
+    loja_id = slugify(loja_id)
+    status = request.form.get("status") or "ativo"
+    if status not in {"ativo", "suspenso"}:
+        status = "ativo"
+    plano = (request.form.get("plano") or "validacao-30-dias").strip()
+    vencimento = request.form.get("vencimento") or (datetime.now().date() + timedelta(days=30)).isoformat()
+    dominio_medicao = (request.form.get("dominio_medicao") or "").strip()
+    dominio_lab = (request.form.get("dominio_lab") or "").strip()
+
+    if not nome:
+        return redirect(url_for("admin_dashboard", erro="Informe o nome da loja."))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM lojas WHERE id=?", (loja_pk,))
+    if cursor.fetchone() is None:
+        conn.close()
+        return redirect(url_for("admin_dashboard", erro="Loja nao encontrada."))
+
+    cursor.execute("SELECT id FROM lojas WHERE loja_id=? AND id<>? LIMIT 1", (loja_id, loja_pk))
+    if cursor.fetchone():
+        conn.close()
+        return redirect(url_for("admin_dashboard", erro=f"O ID {loja_id} ja esta em uso por outra loja."))
+
+    try:
+        cursor.execute("""
+            UPDATE lojas
+            SET loja_id=?, nome=?, cidade=?, status=?, plano=?, vencimento=?,
+                dominio_medicao=?, dominio_lab=?
+            WHERE id=?
+        """, (
+            loja_id,
+            nome,
+            cidade,
+            status,
+            plano,
+            vencimento,
+            dominio_medicao,
+            dominio_lab,
+            loja_pk,
+        ))
+        cursor.execute("""
+            UPDATE licencas
+            SET status=?, vence_em=?
+            WHERE loja_pk=?
+        """, (status, vencimento, loja_pk))
+        registrar_evento(cursor, loja_pk, "loja_editada", f"Loja {nome} atualizada no painel admin.")
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        conn.close()
+        return redirect(url_for("admin_dashboard", erro=f"Nao foi possivel editar a loja: {exc}"))
+
+    conn.close()
+    return redirect(url_for("admin_dashboard", msg=f"Loja {nome} atualizada."))
 
 
 @app.route("/admin/lojas/<int:loja_pk>/status", methods=["POST"])
