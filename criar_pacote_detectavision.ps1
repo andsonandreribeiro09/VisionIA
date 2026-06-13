@@ -26,6 +26,7 @@ $files = @(
     "database.py",
     "face_landmarker.task",
     "laboratorio_app.py",
+    "license_client.py",
     "medicao_app.py",
     "requirements.txt",
     "requirements_laboratorio.txt",

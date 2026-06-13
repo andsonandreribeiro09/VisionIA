@@ -1,5 +1,6 @@
 param(
-    [switch]$LimparBanco
+    [switch]$LimparBanco,
+    [string]$LicenseKey = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,6 +10,7 @@ Set-Location $projectDir
 
 $storeId = "detecta-vision-osasco-001"
 $storeName = "Detecta Vision Osasco"
+$licenseRequired = if ($LicenseKey) { "1" } else { "0" }
 $clientDir = Join-Path $projectDir "data\clientes\$storeId"
 $backupDir = Join-Path $projectDir "data\backups"
 $dbPath = Join-Path $clientDir "visionai.db"
@@ -43,6 +45,11 @@ VISIONAI_MEDICAO_PORT=5000
 VISIONAI_LAB_PORT=5001
 VISIONAI_STORE_ID=$storeId
 VISIONAI_STORE_NAME=$storeName
+VISIONAI_LICENSE_SERVER=https://admin.visioniaotica.com.br
+VISIONAI_LICENSE_KEY=$LicenseKey
+VISIONAI_REQUIRE_LICENSE=$licenseRequired
+VISIONAI_MACHINE_ID=DETECTA-VISION-OSASCO-PC01
+VISIONAI_LICENSE_GRACE_HOURS=24
 VISIONAI_MEDICAO_URL=https://detectavision-medicao.visioniaotica.com.br
 VISIONAI_LAB_URL=https://detectavision-lab.visioniaotica.com.br
 "@ | Set-Content -LiteralPath $envPath -Encoding UTF8

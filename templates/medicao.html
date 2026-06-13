@@ -940,10 +940,64 @@ let leituraIncompativelInicio = null;
 let falhasProcessamento = 0;
 let leiturasRecentes = [];
 let ultimaQualidade = {};
+let licencaLiberada = false;
 
 function numero(valor, fallback = 0){
     const convertido = Number(valor);
     return Number.isFinite(convertido) ? convertido : fallback;
+}
+
+function gerarIdTablet(){
+    if(window.crypto && crypto.randomUUID){
+        return crypto.randomUUID();
+    }
+    return `tablet-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function obterTabletId(){
+    let tabletId = localStorage.getItem("visionai_tablet_id");
+    if(!tabletId){
+        tabletId = gerarIdTablet();
+        localStorage.setItem("visionai_tablet_id", tabletId);
+    }
+    return tabletId;
+}
+
+function tabletPayload(){
+    return {
+        tablet_id: obterTabletId(),
+        tablet_label: navigator.userAgent || "tablet"
+    };
+}
+
+function bloquearCapturaPorLicenca(mensagem){
+    finalizado = true;
+    licencaLiberada = false;
+    faceGuide.style.borderColor = "red";
+    instrucaoEl.innerText = mensagem || "Licenca bloqueada.";
+    statusEl.innerText = mensagem || "Licenca bloqueada.";
+    statusEl.style.background = "#842029";
+    progressBar.style.width = "0%";
+}
+
+async function verificarLicencaCaptura(){
+    try{
+        const resp = await fetch("/api/licenca/status", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(tabletPayload())
+        });
+        const data = await resp.json();
+        if(!data.captura_liberada){
+            bloquearCapturaPorLicenca(data.mensagem);
+            return false;
+        }
+        licencaLiberada = true;
+        return true;
+    }catch(e){
+        bloquearCapturaPorLicenca("Nao foi possivel validar a licenca.");
+        return false;
+    }
 }
 
 function limitar(valor, min, max){
@@ -1176,7 +1230,11 @@ async function enviarFramesParaIA(){
     }
 }
 
-iniciarCameraTablet();
+verificarLicencaCaptura().then((liberada) => {
+    if(liberada){
+        iniciarCameraTablet();
+    }
+});
 
 // =========================
 // =========================
@@ -1184,6 +1242,7 @@ iniciarCameraTablet();
 // =========================
 let loopIA = setInterval(async () => {
     if(finalizado) return;
+    if(!licencaLiberada) return;
 
     try{
         const resp = await fetch(`/dados?paciente_id=${paciente_id}`);
@@ -1425,7 +1484,8 @@ function finalizar(){
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
             paciente_id: paciente_id,
-            medicoes: medicoes
+            medicoes: medicoes,
+            ...tabletPayload()
         })
     })
     .then(res => res.json())

@@ -69,6 +69,11 @@ aside a.active{background:var(--brand);color:#fff}
     gap:4px;
 }
 .side-store strong{font-size:15px}
+.license-copy{
+    min-height:38px;
+    font-family:Consolas, monospace;
+    font-size:11px;
+}
 .side-actions{
     display:grid;
     gap:8px;
@@ -298,6 +303,14 @@ label{
                 <span class="code">{{ loja_lateral.loja_id }}</span>
                 <span class="pill {{ 'ok' if loja_lateral.status == 'ativo' else 'warn' }}">{{ loja_lateral.status }}</span>
                 <span class="pill {{ 'ok' if loja_lateral.online else 'off' }}">{{ 'online' if loja_lateral.online else 'offline' }}</span>
+                <span class="muted">Tablets: {{ loja_lateral.tablet_limite or 1 }}</span>
+                <span class="muted">Tablet autorizado: {{ loja_lateral.tablet_id[:18] ~ '...' if loja_lateral.tablet_id else 'nao vinculado' }}</span>
+                {% if loja_lateral.permitir_troca_tablet %}
+                <span class="pill warn">troca liberada</span>
+                {% endif %}
+                <label>Chave da licenca
+                    <input class="license-copy" readonly value="{{ loja_lateral.license_key or '' }}" onclick="this.select()">
+                </label>
             </div>
             <div class="side-actions">
                 <form method="post" action="/admin/lojas/{{ loja_lateral.id }}/renovar">
@@ -316,6 +329,10 @@ label{
                     <button class="secondary" type="submit">Ativar loja</button>
                 </form>
                 {% endif %}
+
+                <form method="post" action="/admin/lojas/{{ loja_lateral.id }}/tablet/liberar">
+                    <button class="secondary" type="submit">Liberar troca de tablet</button>
+                </form>
 
                 <a class="side-button" href="#editar-loja-{{ loja_lateral.id }}">Editar loja</a>
             </div>
@@ -376,6 +393,8 @@ label{
                                         <span>Vence: {{ loja.vence_em or loja.vencimento or "-" }}</span>
                                         <span>Dias: {{ loja.dias_restantes if loja.dias_restantes is not none else "-" }}</span>
                                         <span class="code">{{ loja.license_key or "-" }}</span>
+                                        <span class="muted">Tablet limite: {{ loja.tablet_limite or 1 }}</span>
+                                        <span class="muted">Tablet: {{ loja.tablet_id[:18] ~ '...' if loja.tablet_id else 'nao vinculado' }}</span>
                                     </div>
                                 </td>
                                 <td>
@@ -418,6 +437,9 @@ label{
                                             </label>
                                             <label>Dominio laboratorio
                                                 <input name="dominio_lab" value="{{ loja.dominio_lab or '' }}">
+                                            </label>
+                                            <label>Limite de tablets
+                                                <input type="number" min="0" name="tablet_limite" value="{{ loja.tablet_limite or 1 }}">
                                             </label>
                                             <button type="submit">Salvar alteracoes</button>
                                         </form>
@@ -467,6 +489,9 @@ label{
                         <label>Dominio laboratorio
                             <input name="dominio_lab" value="{{ defaults.dominio_lab }}">
                         </label>
+                        <label>Limite de tablets
+                            <input type="number" min="0" name="tablet_limite" value="{{ defaults.tablet_limite }}">
+                        </label>
                         <button type="submit">Criar loja e licenca</button>
                     </form>
 
@@ -476,6 +501,7 @@ POST /api/licenca/verificar<br>
 &nbsp;&nbsp;"store_id": "detecta-vision-osasco-001",<br>
 &nbsp;&nbsp;"license_key": "copie-a-chave-gerada",<br>
 &nbsp;&nbsp;"machine_id": "PC-LOJA-001",<br>
+&nbsp;&nbsp;"tablet_id": "id-unico-do-tablet",<br>
 &nbsp;&nbsp;"app_version": "1.0.0"<br>
 }
                     </div>

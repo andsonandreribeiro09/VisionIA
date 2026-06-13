@@ -33,6 +33,12 @@ No PowerShell, dentro da pasta do sistema:
 .\preparar_detectavision_cliente.ps1 -LimparBanco
 ```
 
+Para ja ativar a licenca central e limitar a loja a 1 tablet, copie a chave da loja no painel admin e rode:
+
+```powershell
+.\preparar_detectavision_cliente.ps1 -LimparBanco -LicenseKey "COLE-A-CHAVE-DA-LOJA"
+```
+
 Esse comando cria um perfil local:
 
 ```text
@@ -79,6 +85,9 @@ https://detectavision-medicao.visioniaotica.com.br
 
 Depois adicione na tela inicial do iPad/tablet.
 
+O primeiro tablet que abrir a medicao com a chave da loja fica vinculado como tablet autorizado.
+Se precisar trocar o tablet, acesse o admin central e clique em `Liberar troca de tablet`.
+
 ## No computador da loja
 
 Abra:
@@ -90,3 +99,18 @@ https://detectavision-lab.visioniaotica.com.br
 ## Observacao
 
 Este modo usa banco local SQLite limpo por loja. Ele nao apaga o banco geral de validacao `data\visionai_teste_local.db`.
+
+## Instalador no PC do cliente
+
+No pacote `DetectaVision-Cliente.zip`, abra o PowerShell como administrador dentro da pasta extraida e rode:
+
+```powershell
+.\instalar.ps1 -LimparBanco -LicenseKey "COLE-A-CHAVE-DA-LOJA"
+```
+
+O instalador cria:
+
+- `C:\VisionAI\DetectaVision`
+- icone `VisionAI Laboratorio` na area de trabalho
+- icone `Iniciar VisionAI Detecta Vision` na area de trabalho
+- inicializacao automatica do sistema ao ligar o Windows

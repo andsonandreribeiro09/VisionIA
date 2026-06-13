@@ -105,6 +105,22 @@ h1 {
     text-align: center;
 }
 
+.license-alert {
+    display: none;
+    padding: 12px;
+    border-radius: 8px;
+    background: #fde3e8;
+    color: #a52b3d;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.license-alert.visible {
+    display: block;
+}
+
 form {
     display: grid;
     gap: 14px;
@@ -244,7 +260,14 @@ input:focus {
             <p class="hint">Digite a OS do pedido. A data do exame fica registrada automaticamente.</p>
         </div>
 
+        <div id="license-alert" class="license-alert {% if licenca_erro %}visible{% endif %}">
+            {{ licenca_erro or "" }}
+        </div>
+
         <form action="{{ url_for('salvar_paciente') }}" method="POST" id="cadastro-form">
+            <input type="hidden" name="tablet_id" id="tablet_id">
+            <input type="hidden" name="tablet_label" id="tablet_label">
+
             <div class="input-group">
                 <label for="os_numero">OS</label>
                 <input class="os-input" type="text" name="os_numero" id="os_numero" inputmode="numeric" autocomplete="off" placeholder="01175" required autofocus>
@@ -272,6 +295,56 @@ input:focus {
 
 <script>
 const osInput = document.getElementById("os_numero");
+const cadastroForm = document.getElementById("cadastro-form");
+const btnContinuar = document.getElementById("btn-continuar");
+const tabletInput = document.getElementById("tablet_id");
+const tabletLabelInput = document.getElementById("tablet_label");
+const licenseAlert = document.getElementById("license-alert");
+
+function gerarIdTablet(){
+    if(window.crypto && crypto.randomUUID){
+        return crypto.randomUUID();
+    }
+    return `tablet-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function obterTabletId(){
+    let tabletId = localStorage.getItem("visionai_tablet_id");
+    if(!tabletId){
+        tabletId = gerarIdTablet();
+        localStorage.setItem("visionai_tablet_id", tabletId);
+    }
+    tabletInput.value = tabletId;
+    tabletLabelInput.value = navigator.userAgent || "tablet";
+    return tabletId;
+}
+
+function bloquearPorLicenca(mensagem){
+    licenseAlert.textContent = mensagem || "Licenca bloqueada.";
+    licenseAlert.classList.add("visible");
+    btnContinuar.disabled = true;
+    btnContinuar.innerText = "Licenca bloqueada";
+}
+
+async function verificarLicenca(){
+    const tabletId = obterTabletId();
+    try{
+        const resp = await fetch("/api/licenca/status", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                tablet_id: tabletId,
+                tablet_label: navigator.userAgent || "tablet"
+            })
+        });
+        const data = await resp.json();
+        if(!data.captura_liberada){
+            bloquearPorLicenca(data.mensagem);
+        }
+    }catch(e){
+        bloquearPorLicenca("Nao foi possivel validar a licenca. Verifique a internet.");
+    }
+}
 
 document.querySelectorAll("[data-os]").forEach(function(botao) {
     botao.addEventListener("click", function() {
@@ -284,11 +357,13 @@ osInput.addEventListener("input", function() {
     this.value = this.value.replace(/\D+/g, "").slice(0, 12);
 });
 
-document.getElementById("cadastro-form").addEventListener("submit", function() {
-    const botao = document.getElementById("btn-continuar");
-    botao.disabled = true;
-    botao.innerText = "Abrindo captura...";
+cadastroForm.addEventListener("submit", function() {
+    obterTabletId();
+    btnContinuar.disabled = true;
+    btnContinuar.innerText = "Abrindo captura...";
 });
+
+verificarLicenca();
 </script>
 </body>
 </html>

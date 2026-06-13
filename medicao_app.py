@@ -8,6 +8,8 @@ import cv2
 import numpy as np
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
+from database import sql_medicoes_hoje
+from license_client import verificar_licenca
 from vision_engine import dados_medicao, processar_frame, resetar_medicao
 from visionai_shared import (
     aplicar_calibracao_valor,
@@ -135,6 +137,28 @@ def resumir_qualidade(capturas):
     return resumo
 
 
+def total_medicoes_hoje():
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(sql_medicoes_hoje())
+        total = cursor.fetchone()["total"]
+        conn.close()
+        return int(total or 0)
+    except Exception:
+        return 0
+
+
+def checar_licenca_tablet(tablet_id=None, tablet_label=None):
+    config_banco = database_config()
+    return verificar_licenca(
+        tablet_id=tablet_id,
+        tablet_label=tablet_label,
+        medicoes_hoje=total_medicoes_hoje(),
+        banco_status=config_banco["label"],
+    )
+
+
 @app.route("/")
 def index():
     session.pop("paciente_id", None)
@@ -183,6 +207,16 @@ def db_status():
         }, 500
 
 
+@app.route("/api/licenca/status", methods=["POST"])
+def api_licenca_status():
+    payload = request.get_json(silent=True) or {}
+    resultado = checar_licenca_tablet(
+        tablet_id=payload.get("tablet_id"),
+        tablet_label=payload.get("tablet_label"),
+    )
+    return jsonify(resultado)
+
+
 @app.route("/paciente")
 def paciente():
     os_teste = [f"{numero:05d}" for numero in range(1166, 1176)]
@@ -202,6 +236,19 @@ def cadastro():
 def salvar_paciente():
     if gravacao_bloqueada_por_banco():
         return mensagem_banco_obrigatorio(), 503
+
+    licenca = checar_licenca_tablet(
+        tablet_id=request.form.get("tablet_id"),
+        tablet_label=request.form.get("tablet_label"),
+    )
+    if not licenca.get("captura_liberada"):
+        os_teste = [f"{numero:05d}" for numero in range(1166, 1176)]
+        return render_template(
+            "paciente.html",
+            data_exame=datetime.now().strftime("%Y-%m-%d"),
+            os_teste=os_teste,
+            licenca_erro=licenca.get("mensagem") or "Licenca bloqueada.",
+        ), 403
 
     os_numero = (request.form.get("os_numero") or request.form.get("rg") or "").strip()
     os_numero = re.sub(r"\D+", "", os_numero)
@@ -413,6 +460,17 @@ def salvar_lote():
         return {"status": "erro", "msg": mensagem_banco_obrigatorio()}, 503
 
     dados = request.get_json(silent=True) or {}
+    licenca = checar_licenca_tablet(
+        tablet_id=dados.get("tablet_id"),
+        tablet_label=dados.get("tablet_label"),
+    )
+    if not licenca.get("captura_liberada"):
+        return {
+            "status": "erro",
+            "msg": licenca.get("mensagem") or "Licenca bloqueada.",
+            "licenca": licenca,
+        }, 403
+
     paciente_id = dados.get("paciente_id")
     medicoes = dados.get("medicoes") or []
 

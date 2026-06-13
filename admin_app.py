@@ -41,6 +41,18 @@ def dias_restantes(vencimento):
     return (data - datetime.now().date()).days
 
 
+def row_dict(row):
+    return dict(row) if row is not None else None
+
+
+def inteiro_positivo(valor, padrao):
+    try:
+        numero = int(valor)
+        return numero if numero >= 0 else padrao
+    except (TypeError, ValueError):
+        return padrao
+
+
 def slugify(texto):
     texto = (texto or "").lower().strip()
     texto = texto.replace("ç", "c")
@@ -61,6 +73,37 @@ def requer_admin(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+def coluna_existe(cursor, backend, tabela, coluna):
+    if backend == "postgresql":
+        cursor.execute("""
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_name=? AND column_name=?
+            LIMIT 1
+        """, (tabela, coluna))
+        return cursor.fetchone() is not None
+
+    cursor.execute(f"PRAGMA table_info({tabela})")
+    return any(row["name"] == coluna for row in cursor.fetchall())
+
+
+def garantir_coluna(cursor, backend, tabela, coluna, definicao):
+    if coluna_existe(cursor, backend, tabela, coluna):
+        return
+    cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+
+
+def migrar_tabelas_admin(cursor, backend):
+    for coluna, definicao in [
+        ("tablet_limite", "INTEGER DEFAULT 1"),
+        ("tablet_id", "TEXT"),
+        ("tablet_label", "TEXT"),
+        ("tablet_ativado_em", "TEXT"),
+        ("permitir_troca_tablet", "INTEGER DEFAULT 0"),
+    ]:
+        garantir_coluna(cursor, backend, "licencas", coluna, definicao)
 
 
 def criar_tabelas_admin():
@@ -93,6 +136,11 @@ def criar_tabelas_admin():
             vence_em TEXT,
             ultimo_checkin TEXT,
             machine_id TEXT,
+            tablet_limite INTEGER DEFAULT 1,
+            tablet_id TEXT,
+            tablet_label TEXT,
+            tablet_ativado_em TEXT,
+            permitir_troca_tablet INTEGER DEFAULT 0,
             criado_em TEXT DEFAULT (CURRENT_TIMESTAMP::text)
         )
         """)
@@ -143,6 +191,11 @@ def criar_tabelas_admin():
             vence_em TEXT,
             ultimo_checkin TEXT,
             machine_id TEXT,
+            tablet_limite INTEGER DEFAULT 1,
+            tablet_id TEXT,
+            tablet_label TEXT,
+            tablet_ativado_em TEXT,
+            permitir_troca_tablet INTEGER DEFAULT 0,
             criado_em TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """)
@@ -169,6 +222,7 @@ def criar_tabelas_admin():
         )
         """)
 
+    migrar_tabelas_admin(cursor, backend)
     conn.commit()
     conn.close()
 
@@ -192,6 +246,11 @@ def carregar_lojas():
             lic.vence_em,
             lic.ultimo_checkin,
             lic.machine_id,
+            lic.tablet_limite,
+            lic.tablet_id,
+            lic.tablet_label,
+            lic.tablet_ativado_em,
+            lic.permitir_troca_tablet,
             (
                 SELECT c.versao
                 FROM checkins c
@@ -240,7 +299,8 @@ def buscar_loja_por_id(cursor, store_id, license_key=None):
     if license_key:
         cursor.execute("""
             SELECT l.*, lic.id AS licenca_id, lic.license_key, lic.status AS licenca_status,
-                   lic.vence_em, lic.machine_id
+                   lic.vence_em, lic.machine_id, lic.tablet_limite, lic.tablet_id,
+                   lic.tablet_label, lic.tablet_ativado_em, lic.permitir_troca_tablet
             FROM lojas l
             JOIN licencas lic ON lic.loja_pk = l.id
             WHERE l.loja_id=? AND lic.license_key=?
@@ -249,13 +309,14 @@ def buscar_loja_por_id(cursor, store_id, license_key=None):
     else:
         cursor.execute("""
             SELECT l.*, lic.id AS licenca_id, lic.license_key, lic.status AS licenca_status,
-                   lic.vence_em, lic.machine_id
+                   lic.vence_em, lic.machine_id, lic.tablet_limite, lic.tablet_id,
+                   lic.tablet_label, lic.tablet_ativado_em, lic.permitir_troca_tablet
             FROM lojas l
             LEFT JOIN licencas lic ON lic.loja_pk = l.id
             WHERE l.loja_id=?
             LIMIT 1
         """, (store_id,))
-    return cursor.fetchone()
+    return row_dict(cursor.fetchone())
 
 
 def resultado_licenca(loja):
@@ -293,6 +354,70 @@ def resultado_licenca(loja):
             "dominio_lab": loja.get("dominio_lab"),
         },
     }
+
+
+def aplicar_regra_tablet(cursor, loja, resultado, tablet_id, tablet_label):
+    limite = inteiro_positivo(loja.get("tablet_limite"), 1)
+    tablet_atual = (loja.get("tablet_id") or "").strip()
+    tablet_id = (tablet_id or "").strip()
+    permitir_troca = inteiro_positivo(loja.get("permitir_troca_tablet"), 0) == 1
+
+    resultado["tablet"] = {
+        "limite": limite,
+        "tablet_id": tablet_id,
+        "tablet_autorizado": tablet_atual,
+        "tablet_label": loja.get("tablet_label"),
+        "tablet_ativado_em": loja.get("tablet_ativado_em"),
+        "permitir_troca": permitir_troca,
+    }
+
+    if not resultado.get("captura_liberada"):
+        resultado["tablet_autorizado"] = False
+        return resultado
+
+    if limite <= 0:
+        resultado["tablet_autorizado"] = True
+        return resultado
+
+    if not tablet_id:
+        resultado.update({
+            "status": "tablet_pendente",
+            "captura_liberada": False,
+            "tablet_autorizado": False,
+            "mensagem": "Identificacao do tablet nao recebida. Abra novamente no tablet autorizado.",
+        })
+        return resultado
+
+    if not tablet_atual or permitir_troca:
+        agora = agora_iso()
+        cursor.execute("""
+            UPDATE licencas
+            SET tablet_id=?, tablet_label=?, tablet_ativado_em=?, permitir_troca_tablet=0
+            WHERE id=?
+        """, (tablet_id, (tablet_label or "")[:180], agora, loja.get("licenca_id")))
+        resultado["tablet"].update({
+            "tablet_autorizado": tablet_id,
+            "tablet_label": (tablet_label or "")[:180],
+            "tablet_ativado_em": agora,
+            "permitir_troca": False,
+        })
+        resultado["tablet_autorizado"] = True
+        resultado["mensagem"] = "Licenca ativa. Tablet autorizado."
+        registrar_evento(cursor, loja.get("id"), "tablet_autorizado", "Tablet autorizado para esta loja.")
+        return resultado
+
+    if tablet_atual == tablet_id:
+        resultado["tablet_autorizado"] = True
+        resultado["mensagem"] = "Licenca ativa. Tablet autorizado."
+        return resultado
+
+    resultado.update({
+        "status": "tablet_bloqueado",
+        "captura_liberada": False,
+        "tablet_autorizado": False,
+        "mensagem": "Este tablet nao esta autorizado para esta loja. Libere a troca no painel admin.",
+    })
+    return resultado
 
 
 @app.route("/")
@@ -343,6 +468,7 @@ def admin_dashboard():
         "vencimento": (datetime.now().date() + timedelta(days=30)).isoformat(),
         "dominio_medicao": "detectavision-medicao.visioniaotica.com.br",
         "dominio_lab": "detectavision-lab.visioniaotica.com.br",
+        "tablet_limite": 1,
     }
     return render_template(
         "admin.html",
@@ -368,6 +494,7 @@ def admin_criar_loja():
     vencimento = request.form.get("vencimento") or (datetime.now().date() + timedelta(days=30)).isoformat()
     dominio_medicao = (request.form.get("dominio_medicao") or "").strip()
     dominio_lab = (request.form.get("dominio_lab") or "").strip()
+    tablet_limite = inteiro_positivo(request.form.get("tablet_limite"), 1)
     license_key = (request.form.get("license_key") or f"VAI-{secrets.token_urlsafe(24)}").strip()
 
     if not nome:
@@ -394,9 +521,9 @@ def admin_criar_loja():
 
         cursor.execute("""
             INSERT INTO licencas
-            (loja_pk, license_key, status, vence_em, criado_em)
-            VALUES (?, ?, ?, ?, ?)
-        """, (loja_pk, license_key, status, vencimento, agora_iso()))
+            (loja_pk, license_key, status, vence_em, tablet_limite, criado_em)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (loja_pk, license_key, status, vencimento, tablet_limite, agora_iso()))
         registrar_evento(cursor, loja_pk, "loja_criada", f"Loja {nome} criada com plano {plano}.")
         conn.commit()
     except Exception as exc:
@@ -458,9 +585,9 @@ def admin_editar_loja(loja_pk):
         ))
         cursor.execute("""
             UPDATE licencas
-            SET status=?, vence_em=?
+            SET status=?, vence_em=?, tablet_limite=?
             WHERE loja_pk=?
-        """, (status, vencimento, loja_pk))
+        """, (status, vencimento, tablet_limite, loja_pk))
         registrar_evento(cursor, loja_pk, "loja_editada", f"Loja {nome} atualizada no painel admin.")
         conn.commit()
     except Exception as exc:
@@ -489,6 +616,28 @@ def admin_status_loja(loja_pk):
     return redirect(url_for("admin_dashboard", loja=loja_pk, msg=f"Status alterado para {status}."))
 
 
+@app.route("/admin/lojas/<int:loja_pk>/tablet/liberar", methods=["POST"])
+@requer_admin
+def admin_liberar_tablet(loja_pk):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT nome FROM lojas WHERE id=?", (loja_pk,))
+    loja = row_dict(cursor.fetchone())
+    if not loja:
+        conn.close()
+        return redirect(url_for("admin_dashboard", erro="Loja nao encontrada."))
+
+    cursor.execute("""
+        UPDATE licencas
+        SET tablet_id=NULL, tablet_label=NULL, tablet_ativado_em=NULL, permitir_troca_tablet=1
+        WHERE loja_pk=?
+    """, (loja_pk,))
+    registrar_evento(cursor, loja_pk, "tablet_liberado", "Troca de tablet liberada pelo admin.")
+    conn.commit()
+    conn.close()
+    return redirect(url_for("admin_dashboard", loja=loja_pk, msg="Troca de tablet liberada."))
+
+
 @app.route("/admin/lojas/<int:loja_pk>/renovar", methods=["POST"])
 @requer_admin
 def admin_renovar_loja(loja_pk):
@@ -496,7 +645,7 @@ def admin_renovar_loja(loja_pk):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT vencimento FROM lojas WHERE id=?", (loja_pk,))
-    loja = cursor.fetchone()
+    loja = row_dict(cursor.fetchone())
     base = datetime.now().date()
     vencimento_atual = parse_data(loja.get("vencimento") if loja else None)
     if vencimento_atual and vencimento_atual > base:
@@ -526,6 +675,8 @@ def api_verificar_licenca():
     store_id = (dados.get("store_id") or "").strip()
     license_key = (dados.get("license_key") or "").strip()
     machine_id = (dados.get("machine_id") or "").strip()
+    tablet_id = (dados.get("tablet_id") or "").strip()
+    tablet_label = (dados.get("tablet_label") or "").strip()
     app_version = (dados.get("app_version") or "").strip()
     medicoes_hoje = int(dados.get("medicoes_hoje") or 0)
     banco_status = (dados.get("banco_status") or "").strip()
@@ -542,7 +693,13 @@ def api_verificar_licenca():
             "mensagem": "Licenca invalida.",
         }), 403
 
-    resultado = resultado_licenca(loja)
+    resultado = aplicar_regra_tablet(
+        cursor,
+        loja,
+        resultado_licenca(loja),
+        tablet_id,
+        tablet_label,
+    )
     agora = agora_iso()
     cursor.execute("""
         UPDATE licencas

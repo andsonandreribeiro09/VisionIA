@@ -1,6 +1,7 @@
 param(
     [switch]$LimparBanco,
-    [switch]$NaoIniciar
+    [switch]$NaoIniciar,
+    [string]$LicenseKey = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +13,7 @@ $storeName = "Detecta Vision Osasco"
 $medicaoUrl = "https://detectavision-medicao.visioniaotica.com.br"
 $labUrl = "https://detectavision-lab.visioniaotica.com.br"
 $adminUrl = "https://admin.visioniaotica.com.br/admin"
+$licenseRequired = if ($LicenseKey) { "1" } else { "0" }
 $clientDataDir = Join-Path $installDir "data\clientes\$storeId"
 $backupDir = Join-Path $installDir "data\backups"
 $dbPath = Join-Path $clientDataDir "visionai.db"
@@ -109,6 +111,11 @@ VISIONAI_MEDICAO_PORT=5000
 VISIONAI_LAB_PORT=5001
 VISIONAI_STORE_ID=$storeId
 VISIONAI_STORE_NAME=$storeName
+VISIONAI_LICENSE_SERVER=https://admin.visioniaotica.com.br
+VISIONAI_LICENSE_KEY=$LicenseKey
+VISIONAI_REQUIRE_LICENSE=$licenseRequired
+VISIONAI_MACHINE_ID=DETECTA-VISION-OSASCO-PC01
+VISIONAI_LICENSE_GRACE_HOURS=24
 VISIONAI_MEDICAO_URL=$medicaoUrl
 VISIONAI_LAB_URL=$labUrl
 "@ | Set-Content -LiteralPath $envPath -Encoding UTF8
@@ -227,5 +234,10 @@ Write-Host "Medicao:      $medicaoUrl"
 Write-Host "Laboratorio:  $labUrl"
 Write-Host "Admin:        $adminUrl"
 Write-Host "Banco:        $dbPath"
+if ($LicenseKey) {
+    Write-Host "Licenca:      vinculada ao admin central"
+} else {
+    Write-Host "Licenca:      nao informada; rode novamente com -LicenseKey para ativar o bloqueio"
+}
 Write-Host ""
 Write-Host "Use o icone 'VisionAI Laboratorio' na area de trabalho."
