@@ -2,6 +2,11 @@ $ErrorActionPreference = "Stop"
 
 $projectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $env:VISIONAI_ENV_FILE = Join-Path $projectDir ".env.detectavision.local"
+$venvScripts = Join-Path $projectDir ".venv\Scripts"
+
+if (Test-Path (Join-Path $venvScripts "python.exe")) {
+    $env:Path = "$venvScripts;$($env:Path)"
+}
 
 if (-not (Test-Path $env:VISIONAI_ENV_FILE)) {
     Write-Host ""
